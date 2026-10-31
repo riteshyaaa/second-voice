@@ -1,0 +1,112 @@
+[
+ {
+  "check": "live transcription via API",
+  "pass": true,
+  "detail": "200 {\"transcript_id\":1,\"text_original\":\"Bonnie.\",\"language\":\"en\",\"provider\":\"meta-asr\",\"model_version\":\""
+ },
+ {
+  "check": "live provider labelled meta-asr",
+  "pass": true,
+  "detail": "meta-asr"
+ },
+ {
+  "check": "reconstruction via API",
+  "pass": true,
+  "detail": "200"
+ },
+ {
+  "check": "correction saved with consent",
+  "pass": true,
+  "detail": "corrections=1"
+ },
+ {
+  "check": "learning events visible",
+  "pass": true,
+  "detail": "2 events"
+ },
+ {
+  "check": "approved correction reused next session",
+  "pass": true,
+  "detail": "पानी"
+ },
+ {
+  "check": "learning disabled blocks saving",
+  "pass": true,
+  "detail": "1->1"
+ },
+ {
+  "check": "rejections opt-in only",
+  "pass": true,
+  "detail": "0/0/1"
+ },
+ {
+  "check": "vocab add/list/delete",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "check": "memory add/delete",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "check": "confirmed text stored verbatim",
+  "pass": true,
+  "detail": "['Paani, PLEASE.']"
+ },
+ {
+  "check": "synthesize confirmed via API",
+  "pass": true,
+  "detail": "200 {\"tts_request_id\":1,\"provider\":\"webspeech-fallback\",\"voice\":\"browser-speechSynthesis\",\"fallback\":tru"
+ },
+ {
+  "check": "spoken audio retrievable",
+  "pass": true,
+  "detail": "38444"
+ },
+ {
+  "check": "unconfirmed text rejected (409)",
+  "pass": true,
+  "detail": "409"
+ },
+ {
+  "check": "cross-user synthesize rejected (404)",
+  "pass": true,
+  "detail": "404"
+ },
+ {
+  "check": "forged id rejected (404)",
+  "pass": true,
+  "detail": "404"
+ },
+ {
+  "check": "anonymous synthesize rejected (401/403)",
+  "pass": true,
+  "detail": "401"
+ },
+ {
+  "check": "sessions isolated",
+  "pass": true,
+  "detail": "b sees none"
+ },
+ {
+  "check": "session detail isolated",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "check": "vocab isolated",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "check": "memory isolated",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "check": "account wipe clears learning",
+  "pass": true,
+  "detail": "{'words_learned': 0, 'corrections_approved': 0, 'suggestions_accepted': 0, 'suggestions_rejected': 0, 'suggestions_total': 0, 'acceptance_rate': 0.0, 'languages_used': {}, 'frequent_phrases': [], 'top"
+ }
+]

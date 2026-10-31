@@ -1,0 +1,24 @@
+{
+ "constructed": true,
+ "recipe": "dengue[0:8s] + 0.3s silence + water_caltrop + 0.3s silence + dengue[8:16s]",
+ "sources": [
+  "hi_dengue_lead.bin",
+  "en_water_caltrop.bin"
+ ],
+ "duration_s": 17.93,
+ "asr_latency_s": 6.79,
+ "provider": "meta-asr",
+ "asr_language": "en",
+ "hypothesis": "डेंगू बुखार। डेंगू एक उष्ण कटिबंधीय संक्रामक रोग बीमारी है जो एडीज इजिप्टी मच्छरों के काटने से होता है। इस रोग में तेज बुखार के साथ शरीर के उभरे चकत्तों से खून रिसता है। कई मामलों में यह।",
+ "detected": "hi",
+ "code_switch": false,
+ "hindi_span_present": true,
+ "english_span_present": false,
+ "suggest_latency_s": 8.51,
+ "suggest_provider": "meta-spark",
+ "proposed": "डेंगू बुखार। डेंगू एक उष्ण कटिबंधीय संक्रामक रोग बीमारी है जो एडीज इजिप्टी मच्छरों के काटने से होता है। इस रोग में तेज बुखार के साथ शरीर के उभरे चकत्तों से खून रिसता है। कई मामलों में यह।",
+ "abstained": false,
+ "guard_problems": [],
+ "proposed_detected": "hi",
+ "mix_preserved": false
+}
