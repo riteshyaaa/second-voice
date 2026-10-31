@@ -1,0 +1,50 @@
+name: secondvoice
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: secondvoice
+      POSTGRES_PASSWORD: secondvoice
+      POSTGRES_DB: secondvoice
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U secondvoice"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://secondvoice:secondvoice@db:5432/secondvoice
+    ports:
+      - "8000:8000"
+    volumes:
+      - audiodata:/data/audio
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  frontend:
+    build: ./frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  audiodata:
