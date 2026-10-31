@@ -3,11 +3,13 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { loggedIn, setToken } from "@/lib/api";
 
-const NAV = [
+const PUBLIC_NAV = [
   { label: "Overview", href: "/", path: "overview" },
   { label: "Interactive Demo", href: "/#interactive-demo", path: "interactive-demo" },
   { label: "How It Works", href: "/#how-it-works", path: "how-it-works" },
-  { label: "Multilingual", href: "/#interactive-demo", path: "multilingual" },
+];
+
+const PRIVATE_NAV = [
   { label: "Workspace", href: "/communicate/1", path: "workspace" },
   { label: "Settings", href: "/settings", path: "settings" },
 ];
@@ -16,6 +18,7 @@ export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const authed = loggedIn();
+  const NAV = authed ? [...PUBLIC_NAV, ...PRIVATE_NAV] : PUBLIC_NAV;
   const active = pathname === "/" ? "overview" : pathname.startsWith("/communicate") ? "workspace" : pathname.startsWith("/settings") || pathname.startsWith("/onboarding") ? "settings" : "";
 
   return (
