@@ -1,4 +1,5 @@
 "use client";
+import RequireAuth from "@/components/RequireAuth";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, setToken } from "@/lib/api";
@@ -33,6 +34,7 @@ export default function Settings() {
   const scaleMap: Record<string, string> = { standard: "Standard (100%)", medium: "Medium (112%)", large: "Large (125%)", xlarge: "Extra Large (140%)" };
 
   return (
+    <RequireAuth>
     <div className="w-full px-margin py-space-xl flex flex-col gap-space-xl max-w-7xl mx-auto">
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-space-lg">
         <div className="max-w-2xl">
@@ -150,5 +152,6 @@ export default function Settings() {
         </div>
       )}
     </div>
+    </RequireAuth>
   );
 }

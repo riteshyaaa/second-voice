@@ -1,4 +1,5 @@
 "use client";
+import RequireAuth from "@/components/RequireAuth";
 import { useEffect, useState } from "react";
 import { api, speakBrowser } from "@/lib/api";
 
@@ -51,6 +52,7 @@ export default function Vocabulary() {
   const filtered = SEED.filter((s) => (cat === "all" || s.cat === cat) && (!q || `${s.sound} ${s.target}`.toLowerCase().includes(q.toLowerCase())));
 
   return (
+    <RequireAuth>
     <div className="w-full px-margin py-space-xl flex flex-col gap-space-xl max-w-7xl mx-auto">
       <div className="flex flex-col lg:flex-row items-stretch justify-between gap-gutter">
         <div className="max-w-2xl">
@@ -162,5 +164,6 @@ export default function Vocabulary() {
       )}
       {toast && <div className="fixed bottom-6 right-6 z-50 bg-surface-container-highest px-space-lg py-space-md rounded-xl flex items-center gap-space-sm"><span className="material-symbols-outlined text-primary text-[22px]">check_circle</span>{toast}</div>}
     </div>
+    </RequireAuth>
   );
 }

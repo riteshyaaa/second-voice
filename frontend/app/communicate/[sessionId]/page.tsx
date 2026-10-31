@@ -1,4 +1,5 @@
 "use client";
+import RequireAuth from "@/components/RequireAuth";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import DiffView from "@/components/DiffView";
@@ -170,6 +171,7 @@ export default function Workspace() {
   }
 
   return (
+    <RequireAuth>
     <div className="flex flex-col w-full">
       <aside aria-label="Demo Mode Controls" className="w-full bg-surface-container-high px-margin py-space-sm flex flex-wrap items-center justify-between gap-space-md">
         <div className="flex items-center gap-space-sm min-w-0">
@@ -328,5 +330,6 @@ export default function Workspace() {
       </div>
       {toast && <div className="fixed bottom-6 right-6 z-50 bg-primary text-on-primary px-space-lg py-space-md rounded-xl font-label-lg text-label-lg font-bold flex items-center gap-space-sm"><span className="material-symbols-outlined text-[22px]">check_circle</span>{toast}</div>}
     </div>
+    </RequireAuth>
   );
 }

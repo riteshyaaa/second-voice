@@ -1,4 +1,5 @@
 "use client";
+import RequireAuth from "@/components/RequireAuth";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -53,6 +54,7 @@ export default function Dashboard() {
   }
 
   return (
+    <RequireAuth>
     <div className="space-y-6">
       <div className="card flex flex-wrap items-center gap-4">
         <button
@@ -77,7 +79,7 @@ export default function Dashboard() {
         <div className="mt-3 flex flex-wrap gap-2">
           {["I need help.", "Please wait.", "I need some time.", "Please repeat that.", "Thank you.", "I need a break.",
             ...phrases.map((p) => p.content)].slice(0, 12).map((p) => (
-            <span key={p} className="text-lg border rounded-full px-4 py-2 bg-sand">{p}</span>
+            <span key={p} className="text-lg border border-ink rounded-full px-4 py-2 bg-sand text-ink">{p}</span>
           ))}
         </div>
         <Link className="underline text-lg mt-3 inline-block" href="/board">Edit communication board</Link>
@@ -96,5 +98,6 @@ export default function Dashboard() {
         </ul>
       </section>
     </div>
+    </RequireAuth>
   );
 }

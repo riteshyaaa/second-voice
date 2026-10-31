@@ -1,4 +1,5 @@
 "use client";
+import RequireAuth from "@/components/RequireAuth";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
@@ -14,6 +15,7 @@ export default function History() {
   }, []);
 
   return (
+    <RequireAuth>
     <div className="space-y-4">
       <h1 className="font-serif text-3xl">Conversation history</h1>
       <div className="grid md:grid-cols-2 gap-4">
@@ -47,5 +49,6 @@ export default function History() {
       </div>
       <p><Link className="underline text-lg" href="/dashboard">Back to dashboard</Link></p>
     </div>
+    </RequireAuth>
   );
 }

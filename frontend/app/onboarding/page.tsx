@@ -1,4 +1,5 @@
 "use client";
+import RequireAuth from "@/components/RequireAuth";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
@@ -23,6 +24,7 @@ export default function Onboarding() {
   }
 
   return (
+    <RequireAuth>
     <div className="w-full px-margin py-space-xl max-w-3xl mx-auto">
       <div className="bg-surface-container rounded-xl overflow-hidden">
         <div className="p-space-lg bg-surface-container-high"><span className="font-headline-sm font-bold">Second Voice Guided Onboarding — Step {step} of 5: {STEPS[step - 1]}</span></div>
@@ -57,5 +59,6 @@ export default function Onboarding() {
         </div>
       </div>
     </div>
+    </RequireAuth>
   );
 }

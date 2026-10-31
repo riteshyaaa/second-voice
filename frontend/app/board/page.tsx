@@ -1,4 +1,5 @@
 "use client";
+import RequireAuth from "@/components/RequireAuth";
 import { useEffect, useState } from "react";
 import { api, speakBrowser } from "@/lib/api";
 
@@ -24,6 +25,7 @@ export default function Board() {
   }, []);
 
   return (
+    <RequireAuth>
     <div className="w-full px-margin py-space-xl max-w-7xl mx-auto flex flex-col gap-space-lg">
       <div className="bg-surface-container-high rounded-xl p-space-md">
         <span className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">Synthesizer Staging</span>
@@ -51,5 +53,6 @@ export default function Board() {
         <button className="h-12 px-space-lg bg-primary text-on-primary rounded-xl font-semibold" type="submit">Add</button>
       </form>
     </div>
+    </RequireAuth>
   );
 }

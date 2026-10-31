@@ -1,4 +1,5 @@
 "use client";
+import RequireAuth from "@/components/RequireAuth";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 
@@ -20,6 +21,7 @@ export default function Learn() {
   }, []);
 
   return (
+    <RequireAuth>
     <div className="space-y-5 max-w-3xl">
       <h1 className="font-serif text-3xl">What the system has learned</h1>
       <p className="text-lg">Only from words and corrections you approved. Remove anything, any time.</p>
@@ -63,5 +65,6 @@ export default function Learn() {
         )}
       </section>
     </div>
+    </RequireAuth>
   );
 }
