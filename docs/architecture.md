@@ -60,6 +60,16 @@ Backend (`backend/app/`):
   `MetaASRProvider` + registry; `services/asr_orchestration.py` —
   conditional secondary routing, transcript comparison, evidence package.
 - `services/meta_asr_service.py` — thin facade (primary shape unchanged).
+- `services/uncertainty_service.py` (Phase 3) — observable-only
+  uncertainty indicators (closed kind set; no phoneme/confidence claims)
+  + evidence-derived reliability notes.
+- `services/clarification_service.py` (Phase 8) — deterministic targeted
+  questions from stored evidence (max 3, blockers first); answers/skips
+  recorded on the suggestion row (`clarification_answers`, migration 0007).
+- `api/cards.py` + `CommCard` (Phase 9, migration 0008) — visual
+  communication cards speaking through the confirmed path (tap IS the
+  confirmation; migration 0009 allows session-less approvals);
+  `muse_image_service.py` documents image generation as unverified.
 - `services/muse_spark_service.py` — structured reconstruction via Spark.
 - `services/muse_wonder_service.py` — routed deep-reasoning only.
 - `services/muse_image_service.py` — optional visual cards.
@@ -101,7 +111,8 @@ user_preferences(user_id PK/FK, preferred_language, output_language, script,
 communication_sessions(id, user_id FK, title, language, status, created_at)
 audio_assets(id, session_id FK, file_path, mime, duration_s, quality JSON NULL
   [Phase 1, migration 0002], consent_stored, created_at)
-transcripts(id, audio_id FK, text_original, language, provider, model_version,
+transcripts(id, audio_id FK, text_original, language, provider, model_version, evidence JSON NULL
+  [Phase 3, migration 0003: providers, comparison verdict, uncertainty],
   confidence, timestamps JSON, created_at)        ← NEVER updated by AI
 reconstruction_suggestions(id, transcript_id FK, proposed_text, explanation,
   changed_words JSON, alternatives JSON, needs_clarification, clarification_question,

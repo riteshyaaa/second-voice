@@ -1,29 +1,32 @@
-"""Muse Image — optional visual communication cards (never evidence).
+"""Muse Image seam — optional visual-asset generation (Phase 9).
 
-Generates simple illustrative cards from USER-APPROVED concepts only.
-Primary workflow works without it.
+STATUS (2026-11-01): request/response shapes for Meta image generation
+could NOT be verified against official Meta API documentation. Public
+sources describe mutually inconsistent surfaces (Responses-API image
+tools via a cookbook fragment, aggregator /images endpoints, third-party
+wrappers) — none citable as the contract for OUR key + base URL.
+
+So this module deliberately does NOT call any image endpoint. generate()
+raises ImageUnavailable with the verification status; the /illustrate
+route surfaces it as 409. Cards are fully functional without generated
+imagery (emoji anchors + multilingual labels). When a shape is verified
+live, implement it here behind this same function — card code won't change.
+
+Hard rule carried over: generated imagery is a communication aid ONLY,
+never evidence of what anyone said.
 """
-import httpx
 
-from ..core.config import settings
-from ..core.providers import ProviderStatus, meta_available
+STATUS = ("unverified: no citable official request/response shape for "
+          "Meta image generation as of 2026-11-01; refusing to invent one")
 
 
-async def generate_card(concept: str, style: str = "simple pictogram") -> tuple[dict, ProviderStatus]:
-    if not meta_available(settings.META_API_KEY):
-        return (
-            {"image_url": None, "provider": "dev-fallback", "note": "META_API_KEY not set — card not generated."},
-            ProviderStatus("dev-fallback", "dev-fallback-1", False, "no key"),
-        )
-    url = settings.META_BASE_URL.rstrip("/") + "/images/generations"
-    headers = {"Authorization": f"Bearer {settings.META_API_KEY}", "Content-Type": "application/json"}
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.post(url, headers=headers, json={"model": settings.META_IMAGE_MODEL, "prompt": f"{style}: {concept}", "n": 1})
-    if resp.status_code >= 400:
-        raise RuntimeError(f"Muse Image error {resp.status_code}: {resp.text[:300]}")
-    body = resp.json()
-    data = (body.get("data") or [{}])[0]
-    return (
-        {"image_url": data.get("url"), "provider": "meta-image", "note": "illustration of approved concept, not evidence"},
-        ProviderStatus("meta-image", settings.META_IMAGE_MODEL, True, "live"),
-    )
+class ImageUnavailable(Exception):
+    pass
+
+
+def generate_sync(card) -> str:
+    """Illustrate a user-approved card concept. Always raises until a
+    verified provider is wired (see STATUS)."""
+    raise ImageUnavailable(
+        f"AI illustration unavailable ({STATUS}). "
+        f"Card '{getattr(card, 'label', '?')}' works fully with its emoji + labels.")
