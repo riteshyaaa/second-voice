@@ -26,6 +26,22 @@ NEGATION = {"no", "not", "don't", "dont", "doesn't", "doesnt", "didn't", "didnt"
             "can't", "cant", "never", "n't", "nahi", "nahin", "नहीं", "नही", "मत", "नको", "नाही"}
 HEDGES = {"maybe", "perhaps", "possibly", "might", "could be", "not sure", "unclear"}
 NUM_RE = re.compile(r"\d+")
+# Phase 7 semantic sets (deterministic, curated — not inferred).
+MODALS = {"can", "could", "should", "would", "must", "might", "shall", "may",
+          "सकता", "सकते", "सकती", "चाहिए", "पाहिजे"}
+CONDITIONALS = {"if", "unless", "whether", "अगर", "यदि", "जर"}
+DATE_RE = re.compile(r"\b\d{1,2}[:/.\-]\d{1,2}([:/.\-]\d{2,4})?\b|\b\d+\s?(am|pm)\b", re.I)
+MONTHS = {"january", "february", "march", "april", "may", "june", "july", "august",
+          "september", "october", "november", "december",
+          "जनवरी", "फरवरी", "मार्च", "अप्रैल", "मई", "जून", "जुलाई", "अगस्त",
+          "सितंबर", "अक्टूबर", "नवंबर", "दिसंबर"}
+UNITS = {"mg", "ml", "kg", "km", "cm", "mm", "tablet", "tablets", "pill", "pills",
+         "minute", "minutes", "hour", "hours", "day", "days", "week", "weeks",
+         "गोली", "गोलियां", "बूंद", "किलो", "मिनट", "घंटे", "घंटा", "दिन", "रुपये", "पैसे"}
+MEDICAL = {"doctor", "hospital", "emergency", "ambulance", "pain", "medicine", "pharmacy",
+           "help", "allergy", "diabetes", "fever", "injury", "bleeding",
+           "डॉक्टर", "अस्पताल", "मदद", "दर्द", "दवा", "दवाई", "बुखार", "चोट",
+           "आपातकाल", "doctor", "dawai", "dard", "madad", "hospital"}
 
 # tiny grammar fixes that cannot change meaning (articles/copula/gerund)
 _FIXES = [
@@ -49,22 +65,111 @@ def _numbers(text: str) -> list[str]:
     return NUM_RE.findall(text)
 
 
-def violates_guards(original: str, proposed: str) -> list[str]:
-    """Return list of violated meaning-preservation rules (empty = safe)."""
-    problems = []
+def _word_set(text: str) -> set[str]:
+    return set(re.findall(r"[A-Za-z']+|[\u0900-\u097F]+", (text or "").lower()))
+
+
+def _proper_nouns(text: str) -> set[str]:
+    """Latin-script capitalized words past sentence start (Devanagari has
+    no case — uncovered there, documented). First token skipped: sentence
+    position capitalizes ordinary words."""
+    toks = re.findall(r"[A-Za-z']+", text or "")
+    return {t for t in toks[1:] if t[:1].isupper()}
+
+
+def _dates(text: str) -> list[str]:
+    # finditer group(0): full matches — findall would return only the
+    # captured subgroups ("10:30" vs "11:30" would both read ":30").
+    found = sorted(m.group(0).lower() for m in DATE_RE.finditer(text or ""))
+    months = sorted(_word_set(text) & MONTHS)
+    return found + months
+
+
+GUARD_CATEGORIES = ("negation", "number", "name", "datetime", "modal",
+                      "conditional", "unit", "medical")
+
+
+def _guard_checks(original: str, proposed: str) -> list[tuple[str, str]]:
+    """Single source of truth: (category, message) violations. Messages are
+    stable API (explanations quote them); guard_scores() reads categories."""
+    found: list[tuple[str, str]] = []
     if _negation_set(original) != _negation_set(proposed):
-        problems.append("negation changed — intent would reverse")
+        found.append(("negation", "negation changed — intent would reverse"))
     if _numbers(original) != _numbers(proposed):
-        problems.append("number/quantity changed without evidence")
+        found.append(("number", "number/quantity changed without evidence"))
     o_q = original.strip().endswith("?")
     p_q = proposed.strip().endswith("?")
     if o_q != p_q and ("?" in original) != ("?" in proposed):
         # request-vs-statement flip only matters if punctuation shows it
         pass
     if re.search(r"\bnot\b", original, re.I) and not re.search(r"\bnot\b|\bn't\b|never|no\b", proposed, re.I):
-        if "negation changed" not in " ".join(problems):
-            problems.append("negation dropped")
-    return problems
+        if "negation changed" not in " ".join(m for _, m in found):
+            found.append(("negation", "negation dropped"))
+    # Phase 7 semantic preservation (deterministic layer)
+    o_names, p_names = _proper_nouns(original), _proper_nouns(proposed)
+    dropped_names = o_names - p_names
+    if dropped_names:
+        found.append(("name", f"name dropped without approved mapping: {sorted(dropped_names)[0]}"))
+    o_dates, p_dates = _dates(original), _dates(proposed)
+    if o_dates != p_dates:
+        found.append(("datetime", "date/time changed without evidence"))
+    o_w, p_w = _word_set(original), _word_set(proposed)
+    if (o_w & MODALS) != (p_w & MODALS):
+        found.append(("modal", "modal verb changed — ability/permission intent at stake"))
+    if bool(o_w & CONDITIONALS) != bool(p_w & CONDITIONALS):
+        found.append(("conditional", "conditional changed — hypothetical turned definite or reverse"))
+    o_units = sorted(w for w in o_w & UNITS)
+    p_units = sorted(w for w in p_w & UNITS)
+    if o_units != p_units:
+        found.append(("unit", "quantity unit changed without evidence"))
+    o_med = o_w & {m.lower() for m in MEDICAL}
+    p_med = p_w & {m.lower() for m in MEDICAL}
+    if o_med and not p_med:
+        found.append(("medical", "medical/emergency term dropped — never remove calls for help"))
+    return found
+
+
+def violates_guards(original: str, proposed: str) -> list[str]:
+    """Return list of violated meaning-preservation rules (empty = safe)."""
+    return [m for _, m in _guard_checks(original, proposed)]
+
+
+def guard_scores(original: str, proposed: str) -> dict[str, bool]:
+    """Phase 11: per-category preservation (True = preserved)."""
+    failed = {c for c, _ in _guard_checks(original, proposed)}
+    return {c: (c not in failed) for c in GUARD_CATEGORIES}
+
+
+def risk_floor(original: str) -> str:
+    """Minimum meaning risk from the original alone: medical/emergency
+    content always deserves care, even when the transcript looks clean."""
+    if _word_set(original) & {m.lower() for m in MEDICAL}:
+        return "medium"
+    return "low"
+
+
+def escalate(out: dict, indicators: list[dict]) -> dict:
+    """Uncertainty-gated risk: risk-severity observables lift an
+    under-confident 'low', and meaning divergence forces clarification.
+    Never lowers anything — abstentions pass through untouched."""
+    if out.get("abstained"):
+        return out
+    sevs = {i.get("severity") for i in indicators or []}
+    kinds = {i.get("kind") for i in indicators or []}
+    out = dict(out)
+    if "risk" in sevs and out.get("meaning_risk") == "low":
+        out["meaning_risk"] = "medium"
+        out["explanation"] = (out.get("explanation", "") + " Risk raised: recording or recognition evidence is weak.").strip()
+    if "meaning_divergence" in kinds and not out.get("needs_clarification"):
+        out["needs_clarification"] = True
+        out["clarification_question"] = out.get("clarification_question") or "Two readings differ in meaning — which did you intend?"
+        if out.get("meaning_risk") == "low":
+            out["meaning_risk"] = "medium"
+    floor = risk_floor(out.get("original_text", ""))
+    order = {"low": 0, "medium": 1, "high": 2}
+    if order.get(floor, 0) > order.get(out.get("meaning_risk", "low"), 0):
+        out["meaning_risk"] = floor
+    return out
 
 
 def rules_only_suggestion(original: str, vocab_map: dict[str, str]) -> dict:
@@ -97,12 +202,16 @@ def rules_only_suggestion(original: str, vocab_map: dict[str, str]) -> dict:
     return _out(text, proposed, explanation, changed, [], False, "", False, "low")
 
 
-def _out(original, proposed, explanation, changed, alternatives, needs_q, question, abstained, risk) -> dict:
+def _out(original, proposed, explanation, changed, alternatives, needs_q, question, abstained, risk,
+         evidence_for=None, evidence_missing=None, uncertainty_reasons=None) -> dict:
     return {
         "original_text": original, "proposed_text": proposed, "explanation": explanation,
         "changed_words": changed, "alternatives": alternatives,
         "needs_clarification": needs_q, "clarification_question": question,
         "abstained": abstained, "meaning_risk": risk,
+        "evidence_for": evidence_for or [],  # Phase 7: what supports each change
+        "evidence_missing": evidence_missing or [],  # Phase 7: what could not be verified
+        "uncertainty_reasons": uncertainty_reasons or [],  # Phase 7: echoed observables
     }
 
 
@@ -116,18 +225,36 @@ def diff_words(original: str, proposed: str) -> list[dict]:
 
 
 async def suggest(transcript: str, vocab_map: dict[str, str], history: list[str],
-                  language: str, user_request: str, reliability: str = "") -> tuple[dict, ProviderStatus]:
-    """Rules first, then Spark; guards constrain Spark output too."""
+                  language: str, user_request: str, reliability: str = "",
+                  context: dict | None = None) -> tuple[dict, ProviderStatus]:
+    """Rules first, then Spark; guards constrain Spark output too.
+
+    Phase 6: when retrieval `context` is provided, Spark gets the scored
+    subset (spark_vocabulary/history/pattern_hints) instead of the full
+    dumps — deterministic rules still see the full approved map.
+    """
     base = rules_only_suggestion(transcript, vocab_map)
+    spark_vocab = (context or {}).get("spark_vocabulary", list(vocab_map.values()))
+    spark_hist = (context or {}).get("history", history)
+    hints = (context or {}).get("pattern_hints", [])
+    used = (context or {}).get("context_used", [])
+    indicators = (context or {}).get("uncertainty", [])
     if not meta_available(settings.META_API_KEY):
         out = dict(base)
         out.update(provider="dev-fallback", model_version="rules-v1.2")
+        if used:
+            out["context_used"] = used
+        out = escalate(out, indicators)
         return out, ProviderStatus("dev-fallback", "rules-v1.2", False, "META_API_KEY not set; deterministic rules only")
     reliability = reliability or "Transcript is an unverified ASR interpretation (no confidence scores); audio is primary."
+    secondary_text = (context or {}).get("secondary_text")
+    spans = (context or {}).get("language_spans", [])
     try:
         spark, status = await muse_spark_service.reconstruct(
-            transcript, f"ASR interpretation (imperfect): {transcript!r}", list(vocab_map.values()), history,
-            language, user_request, reliability)
+            transcript, f"ASR interpretation (imperfect): {transcript!r}", spark_vocab, spark_hist,
+            language, user_request, reliability, pattern_hints=hints,
+            secondary_transcript=secondary_text, uncertainty_indicators=indicators,
+            language_spans=spans)
     except Exception as exc:  # transport or malformed → labelled rules fallback
         out = dict(base)
         out.update(provider="dev-fallback", model_version="rules-v1.2")
@@ -146,9 +273,13 @@ async def suggest(transcript: str, vocab_map: dict[str, str], history: list[str]
     alts = list(dict.fromkeys((spark.alternatives or []) + base["alternatives"]))[:4]
     out = _out(transcript, spark.proposed_text.strip(), spark.explanation or base["explanation"],
                merged_changed or diff_words(transcript, spark.proposed_text.strip()),
-               alts, spark.needs_clarification, spark.clarification_question, False, spark.meaning_risk)
+               alts, spark.needs_clarification, spark.clarification_question, False, spark.meaning_risk,
+               evidence_for=spark.evidence_for, evidence_missing=spark.evidence_missing,
+               uncertainty_reasons=spark.uncertainty_reasons)
     out.update(provider=status.name, model_version=status.model_version)
-    return out, status
+    if used:
+        out["context_used"] = used
+    return escalate(out, indicators), status
 
 
 def alternatives(transcript: str, vocab_map: dict[str, str], count: int = 3) -> list[str]:
