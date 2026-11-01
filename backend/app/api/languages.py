@@ -30,9 +30,11 @@ async def translate(body: schemas.TranslateIn, user: models.User = Depends(curre
     if meta_available(settings.META_API_KEY):
         try:
             text, status = await muse_spark_service.translate(body.text, body.target)
-            return {"original": body.text, "translated": text, "provider": status.name, "target": body.target}
+            return {"original": body.text, "translated": text, "provider": status.name, "target": body.target,
+                    "guard_warnings": language_service.translation_guards(body.text, text)}
         except Exception:
             pass
     local = language_service.translate_explicit(body.text, body.target)
     return {"original": body.text, "translated": local["text"], "provider": local["provider"],
-            "target": body.target, "note": local["note"]}
+            "target": body.target, "note": local["note"],
+            "guard_warnings": language_service.translation_guards(body.text, local["text"])}

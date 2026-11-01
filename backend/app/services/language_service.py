@@ -19,7 +19,26 @@ _MARATHI_COMMON = {
     "ahe", "nahi", "kay", "kasa", "kashi", "mala", "tula", "tumhala", "aamhi",
     "aani", "pan", "khup", "thoda", "pani", "jevan", "aushadh", "madat",
     "dhanyavad", "pahije", "jaych", "yaych", "karaych", "aaho", "aahe",
+    "mazha", "majha", "tujha", "tumcha", "aamcha", "aahet", "hot", "hota",
+    "hote", "kela", "keli", "karto", "karte", "gelo", "gela", "geli",
+    "hava", "mhanje", "kuthe", "kon", "keva", "kaay", "nako",
 }
+# Devanagari lexicons so script alone never decides hi-vs-mr (Phase 4).
+# Note पानी (hi, dental न) vs पाणी (mr, retroflex ण) are distinct spellings.
+_HINDI_DEV = {
+    "मुझे", "मेरा", "मेरी", "मैं", "आप", "तुम", "यह", "ये", "वह", "वो",
+    "और", "लेकिन", "क्योंकि", "बहुत", "थोड़ा", "पानी", "खाना", "दवाई",
+    "मदद", "धन्यवाद", "शुक्रिया", "चाहिए", "जाना", "आना", "करना", "होगा",
+    "था", "थी", "हूं", "है", "क्या", "कैसे", "नहीं", "मत",
+}
+_MARATHI_DEV = {
+    "मला", "माझा", "माझी", "माझे", "तुला", "तुम्हाला", "आम्ही", "आहे",
+    "आहेत", "पाहिजे", "आणि", "खूप", "कसा", "कशी", "काय", "कुठे", "कोण",
+    "नको", "पाणी", "जेवण", "होतं", "होती", "केलं", "गेलं", "हवं",
+    "म्हणजे", "बरोबर", "छान", "नाही",
+}
+# ळ (U+0933) is Marathi's signature letter; Hindi essentially never uses it.
+_MR_LLA = "ळ"
 _EN_COMMON = {
     "the", "and", "please", "want", "need", "going", "doctor", "help",
     "thank", "sorry", "water", "food", "today", "tomorrow", "time",
@@ -30,50 +49,88 @@ def _tokens(text: str) -> list[str]:
     return re.findall(r"[A-Za-z\u0900-\u097F]+", text.lower())
 
 
+def _is_marathi_token(tok: str, low: str) -> bool:
+    if _MR_LLA in tok:
+        return True
+    if low in _MARATHI_COMMON:
+        return True
+    return tok in _MARATHI_DEV
+
+
+def _is_hindi_token(tok: str, low: str) -> bool:
+    if low in _HINDI_COMMON:
+        return True
+    return tok in _HINDI_DEV
+
+
 def detect_language(text: str) -> dict:
-    """Return {language, confidence_note, code_switch, spans}."""
+    """Return {language, confidence_note, code_switch, spans,
+    languages_present, ambiguous, script}.
+
+    Phase 4: Devanagari no longer defaults to Hindi on script alone —
+    Devanagari lexicons + ळ decide hi-vs-mr. Segment spans tag hi/mr/en
+    per token (Devanagari tokens without a lexicon hit take the sentence
+    decision). `ambiguous` flags close hi/mr calls for clarification.
+    """
     if not text or not text.strip():
-        return {"language": "en", "confidence_note": "empty input, defaulted", "code_switch": False, "spans": []}
+        return {"language": "en", "confidence_note": "empty input, defaulted",
+                "code_switch": False, "spans": [], "languages_present": ["en"],
+                "ambiguous": False, "script": "latin"}
     dev = len(_DEVANAGARI.findall(text))
     toks = _tokens(text)
-    n = max(len(toks), 1)
-    hi = sum(1 for t in toks if t in _HINDI_COMMON)
-    mr = sum(1 for t in toks if t in _MARATHI_COMMON)
+    hi = sum(1 for t in toks if _is_hindi_token(t, t))
+    mr = sum(1 for t in toks if _is_marathi_token(t, t))
     en = sum(1 for t in toks if t in _EN_COMMON)
     dev_ratio = dev / max(len(text), 1)
+    script = script_of(text)
 
-    if dev_ratio > 0.15 and hi + mr == 0:
-        # Devanagari but no lexicon hit → treat by script: default Hindi
-        return {"language": "hi", "confidence_note": "devanagari-script", "code_switch": en > 0, "spans": []}
-    if dev_ratio > 0.15 or hi > 0:
+    lang: str
+    note: str
+    if dev_ratio > 0.15 or hi > 0 or mr > 0:
         if en >= 2 and hi >= 1:
-            lang = "hinglish"
+            lang, note = "hinglish", "lexicon+script heuristic"
         elif mr > hi:
-            lang = "mr"
+            lang, note = "mr", "marathi lexicon (devanagari+lla) heuristic"
+        elif hi > 0 or dev_ratio <= 0.15:
+            lang, note = "hi", "lexicon+script heuristic"
         else:
-            lang = "hi"
-        return {
-            "language": lang,
-            "confidence_note": "lexicon+script heuristic",
-            "code_switch": en > 0 and (hi > 0 or mr > 0),
-            "spans": _code_switch_spans(text),
-        }
-    if mr > hi and mr > 0:
-        return {"language": "mr", "confidence_note": "lexicon heuristic", "code_switch": en > 0, "spans": []}
-    if hi > 0 and en > 0:
-        return {"language": "hinglish", "confidence_note": "lexicon heuristic", "code_switch": True, "spans": _code_switch_spans(text)}
-    if hi > 0:
-        return {"language": "hi", "confidence_note": "lexicon heuristic", "code_switch": False, "spans": []}
-    return {"language": "en", "confidence_note": "default", "code_switch": False, "spans": []}
+            # Devanagari but no lexicon hit on either side: keep the old
+            # default (Hindi) but say so honestly.
+            lang, note = "hi", "devanagari-script default (no lexicon hit)"
+    elif mr > hi and mr > 0:
+        lang, note = "mr", "lexicon heuristic"
+    elif hi > 0 and en > 0:
+        lang, note = "hinglish", "lexicon heuristic"
+    elif hi > 0:
+        lang, note = "hi", "lexicon heuristic"
+    else:
+        return {"language": "en", "confidence_note": "default", "code_switch": False,
+                "spans": [], "languages_present": ["en"], "ambiguous": False, "script": script}
+    spans = _code_switch_spans(text, dev_lang=lang if lang in ("hi", "mr") else "hi")
+    langs = sorted({s["lang"] for s in spans} | {lang})
+    return {
+        "language": lang,
+        "confidence_note": note,
+        "code_switch": len([s for s in spans if s["lang"] == "en"]) > 0 and any(
+            s["lang"] in ("hi", "mr") for s in spans),
+        "spans": spans,
+        "languages_present": langs,
+        "ambiguous": hi > 0 and mr > 0 and abs(hi - mr) <= 1,
+        "script": script,
+    }
 
 
-def _code_switch_spans(text: str) -> list[dict]:
+def _code_switch_spans(text: str, dev_lang: str = "hi") -> list[dict]:
     spans: list[dict] = []
     for m in re.finditer(r"[A-Za-z\u0900-\u097F]+", text):
         tok = m.group(0)
         low = tok.lower()
-        if _DEVANAGARI.search(tok) or low in _HINDI_COMMON or low in _MARATHI_COMMON:
+        if _is_marathi_token(tok, low):
+            spans.append({"token": tok, "lang": "mr"})
+        elif _is_hindi_token(tok, low):
             spans.append({"token": tok, "lang": "hi"})
+        elif _DEVANAGARI.search(tok):
+            spans.append({"token": tok, "lang": dev_lang})
         else:
             spans.append({"token": tok, "lang": "en"})
     # compress to runs
@@ -84,6 +141,29 @@ def _code_switch_spans(text: str) -> list[dict]:
         else:
             runs.append({"lang": s["lang"], "tokens": [s["token"]]})
     return runs
+
+
+def script_of(text: str) -> str:
+    """secondary-script check: native (Devanagari) | latin | mixed."""
+    has_dev = bool(_DEVANAGARI.search(text or ""))
+    has_lat = bool(re.search(r"[A-Za-z]", text or ""))
+    if has_dev and has_lat:
+        return "mixed"
+    if has_dev:
+        return "native"
+    return "latin"
+
+
+def check_script(text: str, preferred: str) -> dict:
+    """Compare actual script vs user preference (native|roman|mixed).
+
+    Advisory only: full transliteration needs a benchmarked engine
+    (documented next step), so a mismatch is reported, never converted.
+    """
+    actual = script_of(text)
+    want_roman = preferred == "roman"
+    match = (actual == "latin") if want_roman else (actual in ("native", "mixed") if preferred == "native" else True)
+    return {"script": actual, "preferred": preferred, "match": match}
 
 
 def normalize(text: str, language: str) -> str:
@@ -112,6 +192,38 @@ _PHRASEBOOK = {
 
 _HINGLISH_TO_HI = {"mujhe": "मुझे", "madad": "मदद", "chahiye": "चाहिए", "paani": "पानी", "dhanyavad": "धन्यवाद", "shukriya": "शुक्रिया", "kya": "क्या", "hai": "है", "nahi": "नहीं"}
 _HINGLISH_TO_EN = {"mujhe": "I", "madad": "help", "chahiye": "need", "paani": "water", "dhanyavad": "thank you", "shukriya": "thank you"}
+
+
+_DEV_DIGITS = str.maketrans("०१२३४५६७८९", "0123456789")
+
+
+def translation_guards(original: str, translated: str) -> list[str]:
+    """Advisory checks that translation preserved meaning-carriers.
+
+    Numbers (both scripts), negation (multilingual set), non-emptiness,
+    and a lenient length sanity bound. Warnings only — the user still
+    confirms which version is spoken. Names across scripts cannot be
+    checked deterministically; that stays a documented limitation.
+    """
+    from .reconstruction_service import NEGATION
+
+    warnings = []
+    t = (translated or "").strip()
+    if not t:
+        return ["empty translation output"]
+    o_digits = re.findall(r"\d+", (original or "").translate(_DEV_DIGITS))
+    t_digits = re.findall(r"\d+", t.translate(_DEV_DIGITS))
+    if o_digits != t_digits:
+        warnings.append(f"numbers changed in translation ({o_digits} → {t_digits})")
+    pat = r"[A-Za-z']+|[\u0900-\u097F]+"
+    o_neg = any(w.lower() in NEGATION or w.lower().endswith("n't") for w in re.findall(pat, original or ""))
+    t_neg = any(w.lower() in NEGATION or w.lower().endswith("n't") for w in re.findall(pat, t))
+    if o_neg != t_neg:
+        warnings.append("negation presence changed in translation")
+    ow, tw = len((original or "").split()), len(t.split())
+    if ow and not (0.25 <= tw / ow <= 4.0):
+        warnings.append("translation length looks suspicious — review before confirming")
+    return warnings
 
 
 def translate_explicit(text: str, target: str) -> dict:
