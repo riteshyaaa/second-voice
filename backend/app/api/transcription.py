@@ -5,7 +5,7 @@ from .. import models, schemas
 from ..core.database import get_db
 from ..core.deps import current_user
 from ..core.ratelimit import rate_limit
-from ..services import audio_service, language_service, meta_asr_service
+from ..services import audio_intelligence, audio_service, language_service, meta_asr_service
 
 router = APIRouter(prefix="/api/v1", tags=["transcription"])
 
@@ -32,6 +32,9 @@ async def _do_transcribe(body: schemas.TranscribeIn, user: models.User, db: Sess
     audio = _session_owned(db, user.id, body.audio_id)
     prefs = db.query(models.UserPreference).filter(models.UserPreference.user_id == user.id).first()
     data = audio_service.load_audio(audio.file_path, prefs.audio_retention_days if prefs else 30)
+    if audio.quality is None:  # backfill rows stored before Phase 1
+        audio.quality = audio_intelligence.analyze_upload(data, audio.mime)
+        db.commit()
     vocab_terms = [v.term for v in db.query(models.VocabularyEntry).filter(models.VocabularyEntry.user_id == user.id).all()]
     result = await meta_asr_service.transcribe(data, audio.mime, body.language_hint, vocab_terms + body.keywords)
     text = (result.get("text") or "").strip()
@@ -54,7 +57,9 @@ async def _do_transcribe(body: schemas.TranscribeIn, user: models.User, db: Sess
     detected = language_service.detect_language(text)
     return {"transcript_id": t.id, "text_original": text, "language": lang,
             "provider": t.provider, "model_version": t.model_version,
-            "detection": detected, "fallback": result.get("fallback", False)}
+            "detection": detected, "fallback": result.get("fallback", False),
+            "audio_quality": audio.quality,
+            "rerecord_suggested": (audio.quality or {}).get("rerecord_suggested", False)}
 
 
 @router.post("/transcription/manual")
@@ -83,7 +88,9 @@ async def transcribe_file(file: UploadFile, session_id: int, language_hint: str 
     if s is None:
         raise HTTPException(status_code=404, detail="Session not found")
     path, duration = audio_service.save_audio(user.id, session_id, data, file.content_type or "audio/wav")
-    asset = models.AudioAsset(session_id=session_id, file_path=path, mime=file.content_type or "audio/wav", duration_s=duration)
+    quality = audio_intelligence.analyze_upload(data, file.content_type or "audio/wav")
+    asset = models.AudioAsset(session_id=session_id, file_path=path, mime=file.content_type or "audio/wav", duration_s=duration,
+                              quality=quality)
     db.add(asset)
     db.commit()
     db.refresh(asset)

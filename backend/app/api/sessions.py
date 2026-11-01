@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from .. import models, schemas
 from ..core.database import get_db
 from ..core.deps import current_user
+from ..services import audio_intelligence
 
 router = APIRouter(prefix="/api/v1", tags=["sessions"])
 
@@ -27,11 +28,14 @@ async def upload_audio(session_id: int, request: Request, user: models.User = De
     body = await request.body()
     mime = (request.headers.get("content-type") or "audio/wav").split(";")[0].strip()
     path, duration = audio_service.save_audio(user.id, session_id, body, mime)
-    asset = models.AudioAsset(session_id=session_id, file_path=path, mime=mime, duration_s=duration, consent_stored=False)
+    quality = audio_intelligence.analyze_upload(body, mime)
+    asset = models.AudioAsset(session_id=session_id, file_path=path, mime=mime, duration_s=duration,
+                              quality=quality, consent_stored=False)
     db.add(asset)
     db.commit()
     db.refresh(asset)
-    return {"audio_id": asset.id, "duration_s": duration, "mime": mime}
+    return {"audio_id": asset.id, "duration_s": duration, "mime": mime,
+            "audio_quality": quality, "rerecord_suggested": quality.get("rerecord_suggested", False)}
 
 
 @router.get("/sessions")
@@ -50,7 +54,7 @@ def session_detail(session_id: int, user: models.User = Depends(current_user), d
         for t in audio.transcripts:
             items.append({
                 "audio_id": audio.id, "transcript_id": t.id, "original": t.text_original,
-                "language": t.language, "provider": t.provider,
+                "language": t.language, "provider": t.provider, "audio_quality": audio.quality,
                 "suggestions": [{"id": x.id, "proposed": x.proposed_text, "status": x.status, "abstained": x.abstained} for x in t.suggestions],
             })
     approved = db.query(models.ApprovedMessage).filter(models.ApprovedMessage.session_id == session_id).all()

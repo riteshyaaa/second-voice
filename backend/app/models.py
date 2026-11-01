@@ -58,6 +58,7 @@ class AudioAsset(Base):
     file_path: Mapped[str] = mapped_column(String(512))
     mime: Mapped[str] = mapped_column(String(80), default="audio/wav")
     duration_s: Mapped[float] = mapped_column(Float, default=0.0)
+    quality: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # Phase 1 audio intelligence verdict
     consent_stored: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     session: Mapped[CommSession] = relationship(back_populates="audios")
