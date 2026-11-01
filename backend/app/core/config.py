@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     META_SPARK_MODEL: str = "muse-spark-1.3"
     META_WONDER_MODEL: str = "muse-wonder-1.0"
     META_IMAGE_MODEL: str = "muse-image-1.0"
+    META_RETRIES: int = 1  # extra attempts for transport errors / 429 / 5xx
+    META_RETRY_BACKOFF_S: float = 1.0
+
+    RATE_LIMIT_PER_MINUTE: int = 120  # auth endpoints, per IP (single-process)
 
     SECOND_ASR_ENABLED: bool = False
     SECOND_ASR_PROVIDER: str = ""

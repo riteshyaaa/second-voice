@@ -34,31 +34,48 @@ def get_db():
         db.close()
 
 
+def _alembic_ini() -> str | None:
+    import app as _app
+
+    ini = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(_app.__file__)), "..", "alembic.ini"))
+    return ini if os.path.exists(ini) else None
+
+
 def init_db() -> None:
+    """Phase 12: postgres databases migrate on startup (`upgrade head`).
+    Legacy path (create_all + stamp) is kept as a fallback so a broken
+    migration state can never block startup; sqlite stays unmanaged."""
+    import logging as _logging
+
+    log = _logging.getLogger("secondvoice")
     from app import models  # noqa: F401  (register tables)
 
+    if not settings.DATABASE_URL.startswith("sqlite"):
+        try:
+            from alembic import command
+            from alembic.config import Config
+
+            ini = _alembic_ini()
+            if ini is None:
+                log.warning("alembic.ini not found; using create_all fallback")
+            else:
+                command.upgrade(Config(ini), "head")
+                log.info("alembic upgrade head ok")
+                return
+        except Exception as exc:
+            log.warning("alembic upgrade failed, create_all fallback: %r", exc)
+        Base.metadata.create_all(bind=engine)
+        try:
+            from alembic import command
+            from alembic.config import Config
+
+            ini = _alembic_ini()
+            if ini is not None:
+                command.stamp(Config(ini), "head")
+                log.info("stamped alembic head (%s)", ini)
+        except Exception as exc:
+            log.warning("alembic stamp skipped: %r", exc)
+        return
+    # local/test databases are not alembic-managed; stamping would point at
+    # the ini's postgres URL and block on connect.
     Base.metadata.create_all(bind=engine)
-    # Stamp the alembic version so `upgrade head` also works on databases
-    # whose tables were created here (verified: fresh `up` + `upgrade head`
-    # failed before this with "table already exists").
-    try:
-        import logging as _logging
-
-        if settings.DATABASE_URL.startswith("sqlite"):
-            return  # local/test databases are not alembic-managed; stamping
-            # would point at the ini's postgres URL and block on connect.
-
-        import app as _app
-        from alembic import command
-        from alembic.config import Config
-
-        ini = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(_app.__file__)), "..", "alembic.ini"))
-        if os.path.exists(ini):
-            command.stamp(Config(ini), "head")
-            _logging.getLogger("secondvoice").info("stamped alembic head (%s)", ini)
-        else:
-            _logging.getLogger("secondvoice").warning("alembic.ini not found at %s; skipping stamp", ini)
-    except Exception as exc:  # migrations stay manual; never block startup
-        import logging as _logging
-
-        _logging.getLogger("secondvoice").warning("alembic stamp skipped: %r", exc)

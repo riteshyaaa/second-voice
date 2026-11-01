@@ -35,7 +35,13 @@ Optional but recommended for live AI:
   `webspeech-fallback` speaks via the device voice.
 
 Tuning: `JWT_EXPIRE_MINUTES`, `AUDIO_RETENTION_DAYS` (default 30),
-`LOG_LEVEL`, `STORAGE_DIR`.
+`LOG_LEVEL`, `STORAGE_DIR`, `META_RETRIES` (default 1 extra attempt on
+transport/429/5xx), `META_RETRY_BACKOFF_S` (default 1.0),
+`RATE_LIMIT_PER_MINUTE` (default 120 per IP on `/api/v1/auth/*`;
+single-process scope — a multi-replica setup needs a shared store).
+
+Startup warns when `JWT_SECRET` is still the dev default. Auth endpoints
+return structured `RATE_LIMITED` (429, `retryable: true`) past the limit.
 
 ## 3. TLS termination
 
@@ -55,20 +61,27 @@ origin, otherwise browsers block API calls.
 
 ## 4. PostgreSQL & migrations
 
-- The backend runs `python -m app.core.init_db` on start, which creates
-  missing tables **and stamps the alembic version** — a fresh
-  `docker compose up` needs no manual step, and `upgrade head` stays a
-  no-op afterwards (both verified against the running stack).
+- The backend runs `python -m app.core.init_db` on start, which runs
+  `alembic upgrade head` (`DATABASE_URL` wins over the ini default). A
+  fresh `docker compose up` and every update deploy migrate automatically;
+  a broken migration state falls back to create-all-plus-stamp and never
+  blocks startup (both paths verified live; see
+  [phase-12](phase-12-production.md)).
 - Versioned schema changes live in `backend/alembic/versions/` (shipped
-  inside the image). After pulling an update, apply them explicitly before
-  (re)starting the backend. Use `python -m` (the bare `alembic` script
-  cannot see the app package inside the image):
+  inside the image). No manual step is needed on update, but you can still
+  migrate explicitly. Use `python -m` (the bare `alembic` script cannot see
+  the app package inside the image):
 
 ```bash
 docker compose run --rm backend python -m alembic -c alembic.ini upgrade head
 ```
 
-(`backend/alembic.ini` points at the compose `db` host by default.)
+- `backend/alembic/env.py` honours `DATABASE_URL` and `-x url=...` for
+  scratch-database work; `compare_server_default=True` keeps autogenerate
+  honest. Verify the chain any time with
+  `infrastructure/scripts/verify_migrations.ps1` (downgrades every
+  revision to base on a scratch DB, upgrades back, and proves the
+  chain-built schema identical to live).
 
 ## 5. Storage & retention
 
@@ -80,14 +93,24 @@ docker compose run --rm backend python -m alembic -c alembic.ini upgrade head
 
 ## 6. Backup & restore
 
+```powershell
+powershell -ExecutionPolicy Bypass -File infrastructure/scripts/backup.ps1
+powershell -ExecutionPolicy Bypass -File infrastructure/scripts/restore.ps1 -DumpFile backups/<file>.dump
+```
+
+`backup.ps1` writes a custom-format dump to `backups/` (git-ignored; never
+commit dumps — they contain password hashes). `restore.ps1` defaults to the
+scratch database `restorecheck` for safe verification; pass
+`-TargetDb secondvoice` for a real restore (drops and recreates it).
+Back up the `audiodata` volume too:
+
 ```bash
-docker compose exec db pg_dump -U secondvoice secondvoice > backup.sql
 docker run --rm -v secondvoice_audiodata:/data -v "$PWD":/out alpine \
   tar czf /out/audiodata.tar.gz /data/audio
 ```
 
-Restore: fresh `up`, `psql < backup.sql`, extract the tarball back into the
-`audiodata` volume. Test restores; an untested backup is not a backup.
+An untested backup is not a backup: restore to scratch and compare row
+counts before trusting it.
 
 ## 7. Health checks & monitoring
 

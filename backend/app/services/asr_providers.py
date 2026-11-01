@@ -86,17 +86,24 @@ class MetaASRProvider(ASRProvider):
         if keywords:
             request_part["keywords"] = keywords[:50]
         files = {"audio": ("audio.wav", wav, "audio/wav")}
+        from .meta_http import MetaHTTPError, meta_post
+
         try:
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                resp = await client.post(url, headers=headers, files=files, data={"request": json.dumps(request_part)})
+            resp = await meta_post(url, label="asr", model=settings.META_ASR_MODEL, headers=headers,
+                                   timeout_s=120.0,
+                                   content={"files": files, "data": {"request": json.dumps(request_part)}})
+        except MetaHTTPError as exc:
+            status, text = exc.status, exc.text
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=502, detail={"code": "ASR_TRANSPORT", "message": str(exc), "retryable": True})
-        if resp.status_code == 401:
+        else:
+            status, text = resp.status_code, resp.text
+        if status == 401:
             raise HTTPException(status_code=502, detail={"code": "ASR_UNAUTHORIZED", "message": "Meta API key rejected.", "retryable": False})
-        if resp.status_code == 429:
+        if status == 429:
             raise HTTPException(status_code=502, detail={"code": "ASR_RATE_LIMIT", "message": "Meta ASR rate limited.", "retryable": True})
-        if resp.status_code >= 400:
-            raise HTTPException(status_code=502, detail={"code": "ASR_ERROR", "message": resp.text[:500], "retryable": True})
+        if status >= 400:
+            raise HTTPException(status_code=502, detail={"code": "ASR_ERROR", "message": text[:500], "retryable": True})
         body = resp.json()
         # Accept common shapes; never invent word-level confidence/timestamps.
         text = body.get("text") or body.get("transcript") or ""

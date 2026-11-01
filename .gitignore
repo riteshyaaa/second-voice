@@ -11,3 +11,5 @@ dist/
 !.env.example
 /data/
 /data/audio/*
+/backups/
+*.dump

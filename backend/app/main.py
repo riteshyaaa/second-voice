@@ -2,10 +2,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api import auth, evaluation, feedback, languages, memory, reconstruction, sessions, settings, speech, transcription
+from .api import auth, cards, evaluation, feedback, languages, memory, reconstruction, sessions, settings, speech, transcription
 from .core.config import settings as cfg
 from .core.database import init_db
 from .core.logging import log, new_trace
+from .middleware.rate_limit import AuthRateLimitMiddleware
 
 app = FastAPI(title="Second Voice API", version="1.0.0")
 
@@ -16,6 +17,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(AuthRateLimitMiddleware)
 
 
 @app.middleware("http")
@@ -33,6 +35,8 @@ async def trace(request, call_next):
 @app.on_event("startup")
 def startup():
     init_db()
+    if cfg.JWT_SECRET == "dev-only-secret-change-me-32-chars-minimum":
+        log.warning("JWT_SECRET is the dev default — set a real secret before any shared deployment")
     log.info("Second Voice API up (META live: %s)", bool(cfg.META_API_KEY))
 
 
@@ -46,5 +50,5 @@ def healthz():
 
 for r in (auth.router, sessions.router, transcription.router, reconstruction.router,
           languages.router, memory.router, feedback.router, speech.router, settings.router,
-          evaluation.router):
+          evaluation.router, cards.router):
     app.include_router(r)

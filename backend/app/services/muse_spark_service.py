@@ -5,7 +5,6 @@ model output → one retry → rules-only fallback (labelled, never faked).
 """
 import json
 
-import httpx
 from pydantic import BaseModel, Field
 
 from ..core.config import settings
@@ -21,6 +20,9 @@ class SparkSuggestion(BaseModel):
     needs_clarification: bool = False
     clarification_question: str = ""
     meaning_risk: str = "low"
+    evidence_for: list[str] = Field(default_factory=list)  # Phase 7
+    evidence_missing: list[str] = Field(default_factory=list)
+    uncertainty_reasons: list[str] = Field(default_factory=list)
 
 
 def _endpoint() -> str:
@@ -52,15 +54,18 @@ def _extract_text(body: dict) -> str:
 
 
 async def _call(payload: dict) -> dict:
+    from .meta_http import MetaHTTPError, meta_post
+
     headers = {"Authorization": f"Bearer {settings.META_API_KEY}", "Content-Type": "application/json"}
-    async with httpx.AsyncClient(timeout=90.0) as client:
-        resp = await client.post(_endpoint(), headers=headers, json=payload)
-    if resp.status_code == 401:
-        raise RuntimeError("Meta API key rejected (401).")
-    if resp.status_code == 429:
-        raise RuntimeError("Meta rate limit (429).")
-    if resp.status_code >= 400:
-        raise RuntimeError(f"Meta Spark error {resp.status_code}: {resp.text[:300]}")
+    try:
+        resp = await meta_post(_endpoint(), label="spark", model=settings.META_SPARK_MODEL,
+                               headers=headers, timeout_s=90.0, content={"json": payload})
+    except MetaHTTPError as exc:
+        if exc.status == 401:
+            raise RuntimeError("Meta API key rejected (401).")
+        if exc.status == 429:
+            raise RuntimeError("Meta rate limit (429).")
+        raise RuntimeError(f"Meta Spark error {exc.status}: {exc.text[:300]}")
     body = resp.json()
     if body.get("status") not in ("completed", None):
         raise ValueError(f"response {body.get('status')}: {(body.get('incomplete_details') or {})}")
@@ -78,6 +83,10 @@ async def reconstruct(
     language: str,
     user_request: str,
     reliability: str = "",
+    pattern_hints: list[str] | None = None,
+    secondary_transcript: str | None = None,
+    uncertainty_indicators: list[dict] | None = None,
+    language_spans: list[dict] | None = None,
 ) -> tuple[SparkSuggestion, ProviderStatus]:
     """Returns (suggestion, status). Raises RuntimeError when Meta fails."""
     if not meta_available(settings.META_API_KEY):
@@ -87,6 +96,10 @@ async def reconstruct(
         "asr_interpretation": asr_note,
         "transcript_reliability": reliability or "No word-level confidence available; treat as uncertain.",
         "approved_vocabulary": vocabulary[:50],
+        "correction_patterns": (pattern_hints or [])[:5],
+        "secondary_transcript": secondary_transcript,
+        "uncertainty_indicators": uncertainty_indicators or [],
+        "language_spans": language_spans or [],
         "communication_history": history[-5:],
         "language_preference": language,
         "user_request": user_request,
