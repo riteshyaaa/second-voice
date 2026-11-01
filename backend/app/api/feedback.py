@@ -46,6 +46,27 @@ def confirm(body: schemas.ConfirmIn, user: models.User = Depends(current_user), 
         session_id = t.audio.session_id
     else:
         raise HTTPException(status_code=422, detail="Provide suggestion_id or transcript_id")
+    # Phase 8: high-impact blockers must be answered or explicitly skipped
+    # before confirmation — unless the user explicitly forces (audited in
+    # the response; user authority always wins).
+    from .reconstruction import _questions_for
+    from ..services import clarification_service as _cs
+    if suggestion_id is not None:
+        qs = _questions_for(db, user.id, s)
+        blockers = _cs.unresolved_blockers(qs, s.clarification_answers)
+    else:
+        t0 = db.query(models.Transcript).filter(models.Transcript.id == transcript_id).first()
+        ev0 = (t0.evidence or {}) if t0 else {}
+        qs = _cs.build_questions(t0.text_original if t0 else "", ev0, None,
+                                 personalization_service.recognition_patterns(db, user.id, limit=50),
+                                 t0.provider if t0 else "", None)
+        blockers = _cs.unresolved_blockers(qs, {})
+    if blockers and not body.force:
+        raise HTTPException(status_code=409, detail={
+            "code": "CLARIFICATION_PENDING",
+            "message": "High-impact ambiguity is unresolved. Answer or skip each blocker, or confirm with force=true.",
+            "blockers": blockers,
+        })
     msg = models.ApprovedMessage(user_id=user.id, session_id=session_id, suggestion_id=suggestion_id,
                                  transcript_id=transcript_id, final_text=body.final_text.strip(),
                                  language=body.language, source=body.source)
@@ -56,7 +77,11 @@ def confirm(body: schemas.ConfirmIn, user: models.User = Depends(current_user), 
     db.commit()
     if body.save_as_learning:
         _learn(db, user.id, suggestion_id, transcript_id, body.final_text)
-    return {"approved_message_id": msg.id, "confirmation": "recorded"}
+    out = {"approved_message_id": msg.id, "confirmation": "recorded"}
+    if blockers and body.force:
+        out["forced"] = True
+        out["forced_over"] = [b["id"] for b in blockers]
+    return out
 
 
 def _learn(db: Session, user_id: int, suggestion_id: int | None, transcript_id: int | None, final_text: str) -> None:
@@ -76,6 +101,19 @@ def _learn(db: Session, user_id: int, suggestion_id: int | None, transcript_id: 
     db.add(models.Correction(user_id=user_id, suggestion_id=suggestion_id, original_text=original,
                              suggested_text=suggested, corrected_text=final_text.strip(),
                              kind="edit" if suggested and final_text.strip() != suggested else "accept"))
+    # Phase 6: did the user revert a personalization swap? If our applied
+    # canonical is gone and the original variant is back, the suggestion —
+    # not the user — was wrong. Record it so the dashboard can show
+    # unwanted-personalization rates.
+    if suggested:
+        vmap = personalization_service.vocab_map(db, user_id)
+        final = final_text.strip()
+        for swap in personalization_service.applied_swaps(vmap, original, suggested):
+            if personalization_service.reverted_swap(swap, final):
+                db.add(models.LearningEvent(user_id=user_id, kind="false_personalization",
+                                            detail={"variant": swap["variant"], "canonical": swap["canonical"],
+                                                    "suggestion_id": suggestion_id},
+                                            provenance="user-correction"))
     personalization_service.learn_correction_pattern(db, user_id, original or final_text, suggested, final_text.strip())
 
 
@@ -109,6 +147,16 @@ def stats(user: models.User = Depends(current_user), db: Session = Depends(get_d
 def learning_events(user: models.User = Depends(current_user), db: Session = Depends(get_db)):
     rows = db.query(models.LearningEvent).filter(models.LearningEvent.user_id == user.id).order_by(models.LearningEvent.id.desc()).limit(100).all()
     return [{"id": r.id, "kind": r.kind, "detail": r.detail, "provenance": r.provenance} for r in rows]
+
+
+@router.get("/learning/patterns")
+def learning_patterns(user: models.User = Depends(current_user), db: Session = Depends(get_db)):
+    """Phase 5: recurring speaker-specific recognition-error patterns.
+
+    Counted only from user-approved corrections — never inferred from raw
+    audio, never a medical claim. `ambiguous` marks terms with competing
+    readings (clarification candidates)."""
+    return personalization_service.recognition_patterns(db, user.id)
 
 
 @router.delete("/learning/{event_id}")
