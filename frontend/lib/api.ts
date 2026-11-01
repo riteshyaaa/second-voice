@@ -92,6 +92,19 @@ export const api = {
     req("/api/v1/languages/translate", { method: "POST", body: JSON.stringify({ text, target }) }),
   pipelineDemo: (transcript: string) =>
     req("/api/v1/evaluation/pipeline-demo", { method: "POST", body: JSON.stringify({ transcript }) }),
+  cards: (category = "", favorites = false) =>
+    req(`/api/v1/cards${category ? `?category=${encodeURIComponent(category)}` : ""}${favorites ? `${category ? "&" : "?"}favorites=true` : ""}`),
+  addCard: (payload: { label: string; phrase: string; language?: string; emoji?: string; category?: string; label_native?: string }) =>
+    req("/api/v1/cards", { method: "POST", body: JSON.stringify(payload) }),
+  patchCard: (id: number, payload: Record<string, unknown>) =>
+    req(`/api/v1/cards/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  delCard: (id: number) => req(`/api/v1/cards/${id}`, { method: "DELETE" }),
+  speakCard: (id: number) => req(`/api/v1/cards/${id}/speak`, { method: "POST" }),
+  questions: (suggestion_id: number) => req(`/api/v1/reconstruction/questions/${suggestion_id}`),
+  answerQuestion: (suggestion_id: number, payload: { question_id: string; kind: string; value?: string }) =>
+    req(`/api/v1/reconstruction/questions/${suggestion_id}/answer`, { method: "POST", body: JSON.stringify(payload) }),
+  addVocabPhrase: (phrase: string, language = "en") =>
+    req("/api/v1/vocabulary", { method: "POST", body: JSON.stringify({ term: phrase, language, category: "phrase" }) }),
   exportData: () => req("/api/v1/account/data", { method: "POST" }),
   deleteData: () => req("/api/v1/account/data", { method: "DELETE" }),
 };
