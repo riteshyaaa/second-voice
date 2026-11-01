@@ -1,6 +1,6 @@
 # Testing
 
-## Backend (pytest, 41 tests)
+## Backend (pytest, 90 tests)
 Run from `backend/` — tests import `app.*`, so running from the repo root
 fails collection:
 ```bash
@@ -23,6 +23,25 @@ suite previously shared one stale sqlite file, hiding schema drift).
   shape, single-engine orchestration, pure comparison, routing matrix,
   stub-secondary path, compare endpoint. Live key monkeypatched empty —
   the suite never touches the network.
+- `test_uncertainty.py` (Phase 3) — closed indicator kind set, matrix
+  (empty/disagree/divergence/quality/length), reliability text, evidence
+  persistence + history round-trip through the manual path.
+- `test_multilingual.py` (Phase 4) — mr Devanagari (±ळ), hi stability,
+  ambiguity flag, mr span runs, script checks, translation-guard matrix,
+  translate/vocab-filter endpoints.
+- `test_profile.py` (Phase 5) — provenance defaults, edit/version/422/
+  cross-user 404, patterns with exact counts + ambiguity, dashboard keys.
+- `test_adaptation.py` (Phase 6) — retrieval priority + caps, history
+  language order + opt-out, false-event on revert (not on keep-with-edits),
+  rollback round-trip + journal growth.
+- `test_reconstruction_v2.py` (Phase 7) — name/date/modal/conditional/
+  unit/medical guards, escalation logic, evidence packer, output keys.
+- `test_clarification.py` (Phase 8) — builder matrix + cap, answer
+  validation, block→answer/skip/force→confirm, replay + isolation.
+- `test_cards.py` (Phase 9) — seed-once, CRUD/favorites/isolation,
+  tap-to-speak audio, honest illustrate 409, export+wipe proof.
+- `test_safety.py` (Phase 10) — forged/cross-user speech refusal,
+  card-tap confirmation proof, per-item audit completeness, wipe journal.
 
 ## Frontend (vitest)
 ```bash

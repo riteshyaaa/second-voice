@@ -18,6 +18,28 @@ def create_session(body: schemas.SessionIn, user: models.User = Depends(current_
     return {"id": s.id, "title": s.title, "language": s.language, "status": s.status, "created_at": s.created_at}
 
 
+@router.get("/audio/sessions/{session_id}/audio/{audio_id}")
+def download_audio(session_id: int, audio_id: int, user: models.User = Depends(current_user), db: Session = Depends(get_db)):
+    """Phase 8: replay the original recording (ownership + retention checked).
+
+    Full clip only — per-segment replay needs word timings no provider
+    exposes. Expired audio 410s via load_audio; never the AI text.
+    """
+    from fastapi.responses import FileResponse
+
+    from ..services import audio_service
+
+    s = db.query(models.CommSession).filter(models.CommSession.id == session_id, models.CommSession.user_id == user.id).first()
+    if s is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    audio = db.query(models.AudioAsset).filter(models.AudioAsset.id == audio_id, models.AudioAsset.session_id == session_id).first()
+    if audio is None:
+        raise HTTPException(status_code=404, detail="Audio not found")
+    prefs = db.query(models.UserPreference).filter(models.UserPreference.user_id == user.id).first()
+    audio_service.load_audio(audio.file_path, prefs.audio_retention_days if prefs else 30)
+    return FileResponse(audio.file_path, media_type=audio.mime or "audio/wav", filename=f"secondvoice_orig_{audio_id}.wav")
+
+
 @router.post("/audio/sessions/{session_id}/audio")
 async def upload_audio(session_id: int, request: Request, user: models.User = Depends(current_user), db: Session = Depends(get_db)):
     from ..services import audio_service
@@ -55,7 +77,11 @@ def session_detail(session_id: int, user: models.User = Depends(current_user), d
             items.append({
                 "audio_id": audio.id, "transcript_id": t.id, "original": t.text_original,
                 "language": t.language, "provider": t.provider, "audio_quality": audio.quality,
-                "suggestions": [{"id": x.id, "proposed": x.proposed_text, "status": x.status, "abstained": x.abstained} for x in t.suggestions],
+                "uncertainty": (t.evidence or {}).get("uncertainty", []),
+                "evidence": t.evidence,  # Phase 10: full audit trail per transcript
+                "suggestions": [{"id": x.id, "proposed": x.proposed_text, "status": x.status, "abstained": x.abstained,
+                                 "evidence_for": x.evidence_for or [],
+                                 "evidence_missing": x.evidence_missing or []} for x in t.suggestions],
             })
     approved = db.query(models.ApprovedMessage).filter(models.ApprovedMessage.session_id == session_id).all()
     return {"id": s.id, "title": s.title, "language": s.language, "items": items,

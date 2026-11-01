@@ -52,7 +52,7 @@ def delete_all(user: models.User = Depends(current_user), db: Session = Depends(
     for tts in db.query(models.TTSRequest).join(models.ApprovedMessage).filter(models.ApprovedMessage.user_id == user.id).all():
         audio_service.delete_audio(tts.audio_path)
     for model in (models.LearningEvent, models.Correction, models.VocabularyEntry, models.CommMemory,
-                  models.ApprovedMessage, models.CommSession, models.UserPreference):
+                  models.CommCard, models.ProfileRevision, models.ApprovedMessage, models.CommSession, models.UserPreference):
         db.query(model).filter(
             (model.user_id == user.id) if hasattr(model, "user_id") else (model.user_id == user.id)).delete(synchronize_session=False)
     db.commit()
