@@ -84,7 +84,7 @@ npm run dev  # http://localhost:3000, NEXT_PUBLIC_API_URL=http://localhost:8000
 | Responsibility | Model | Endpoint |
 |---|---|---|
 | Speech recognition | `muse-voice-transcribe-1.0` | `POST https://api.meta.ai/v1/asr/transcribe`, realtime `wss://api.meta.ai/v1/asr/realtime` |
-| Reconstruction | `muse-spark-1.3` (fallback 1.2/1.1) | `POST https://api.meta.ai/v1/chat/completions` (OpenAI-compatible), Responses/Messages variants |
+| Reconstruction | `muse-spark-1.3` | `POST https://api.meta.ai/v1/responses` (low reasoning effort, structured JSON) |
 | Complex ambiguity | `muse-wonder-1.0` | `POST https://api.meta.ai/v1/chat/completions` (same platform) |
 | Visual cards | `muse-image-1.0` | Meta Model API image endpoint |
 

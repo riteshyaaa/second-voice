@@ -202,3 +202,15 @@ approximate (spoken-Wikipedia openings).
 - Docker: VERIFIED same day (§13). Still blocked (user declined
   alternatives 2026-10-31): dysarthric corpora.
 - No API keys appear anywhere in this report or the evidence files.
+
+## Final validation — 2.0 Phase 14 (2026-11-01)
+
+Full flow re-probed live against Docker (session 27): tone upload → live
+Meta ASR empty-transcript abstention (no invention) → manual negation
+sentence → Spark abstained, meaning preserved → clarification Q&A (skip
+recorded) → edited confirm → synthesis 200 → complete audit history →
+unconfirmed-synthesize and bad-confirm both 404. Suites: backend 102/102,
+frontend 12/12. Deliverables (§19) all present; `.env.example` gained the
+Phase 12 knobs. Full record: [phase-14-final-validation](phase-14-final-validation.md).
+Standing limits: no dysarthric validation, no second ASR engine, illustrate
+stays 409, per-process rate limit, TLS via proxy.
