@@ -24,7 +24,9 @@ def test_payload_carries_reliability_and_low_effort():
 def test_reliability_forwarded_to_model(monkeypatch):
     seen = {}
 
-    async def fake_reconstruct(transcript, asr_note, vocab, history, language, user_request, reliability=""):
+    async def fake_reconstruct(transcript, asr_note, vocab, history, language, user_request, reliability="",
+                               pattern_hints=None, secondary_transcript=None,
+                               uncertainty_indicators=None, language_spans=None):
         seen.update(transcript=transcript, asr_note=asr_note, reliability=reliability)
 
         class S:
@@ -35,6 +37,9 @@ def test_reliability_forwarded_to_model(monkeypatch):
             needs_clarification = False
             clarification_question = ""
             meaning_risk = "low"
+            evidence_for = []
+            evidence_missing = []
+            uncertainty_reasons = []
 
         from app.core.providers import ProviderStatus
 
@@ -54,7 +59,9 @@ def test_reliability_forwarded_to_model(monkeypatch):
 def test_default_reliability_when_caller_passes_none(monkeypatch):
     seen = {}
 
-    async def fake_reconstruct(transcript, asr_note, vocab, history, language, user_request, reliability=""):
+    async def fake_reconstruct(transcript, asr_note, vocab, history, language, user_request, reliability="",
+                               pattern_hints=None, secondary_transcript=None,
+                               uncertainty_indicators=None, language_spans=None):
         seen["reliability"] = reliability
 
         class S:
@@ -65,6 +72,9 @@ def test_default_reliability_when_caller_passes_none(monkeypatch):
             needs_clarification = False
             clarification_question = ""
             meaning_risk = "low"
+            evidence_for = []
+            evidence_missing = []
+            uncertainty_reasons = []
 
         from app.core.providers import ProviderStatus
 
