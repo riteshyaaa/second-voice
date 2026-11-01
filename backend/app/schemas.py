@@ -56,6 +56,13 @@ class ConfirmIn(BaseModel):
     language: str = Field(default="en", max_length=16)
     source: str = Field(default="accepted", max_length=24)
     save_as_learning: bool = False
+    force: bool = False  # Phase 8: explicit override of clarification blockers
+
+
+class ClarifyAnswerIn(BaseModel):
+    question_id: str = Field(max_length=16)
+    kind: str = Field(max_length=16)  # select|type|saved_phrase|skip
+    value: str | None = Field(default=None, max_length=200)
 
 
 class FeedbackIn(BaseModel):
@@ -76,6 +83,38 @@ class MemoryIn(BaseModel):
     kind: str = Field(default="phrase", max_length=40)
     content: str = Field(min_length=1, max_length=5000)
     language: str = Field(default="en", max_length=16)
+
+
+class VocabPatch(BaseModel):
+    term: str | None = Field(default=None, min_length=1, max_length=200)
+    language: str | None = Field(default=None, max_length=16)
+    category: str | None = Field(default=None, max_length=40)
+    status: str | None = Field(default=None, max_length=16)  # approved|provisional
+
+
+class MemoryPatch(BaseModel):
+    kind: str | None = Field(default=None, max_length=40)
+    content: str | None = Field(default=None, min_length=1, max_length=5000)
+    language: str | None = Field(default=None, max_length=16)
+
+
+class CardIn(BaseModel):
+    label: str = Field(min_length=1, max_length=200)
+    label_native: str | None = Field(default=None, max_length=200)
+    language: str = Field(default="en", max_length=16)
+    emoji: str = Field(default="", max_length=16)
+    category: str = Field(default="personal", max_length=24)
+    phrase: str = Field(min_length=1, max_length=500)
+
+
+class CardPatch(BaseModel):
+    label: str | None = Field(default=None, min_length=1, max_length=200)
+    label_native: str | None = Field(default=None, max_length=200)
+    language: str | None = Field(default=None, max_length=16)
+    emoji: str | None = Field(default=None, max_length=16)
+    category: str | None = Field(default=None, max_length=24)
+    phrase: str | None = Field(default=None, min_length=1, max_length=500)
+    favorite: bool | None = None
 
 
 class SynthesizeIn(BaseModel):
