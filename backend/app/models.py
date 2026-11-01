@@ -75,6 +75,7 @@ class Transcript(Base):
     model_version: Mapped[str] = mapped_column(String(80), default="")
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     timestamps: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    evidence: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # Phase 3: providers, comparison, uncertainty
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     audio: Mapped[AudioAsset] = relationship(back_populates="transcripts")
     suggestions: Mapped[list["Suggestion"]] = relationship(back_populates="transcript", cascade="all, delete-orphan")
@@ -91,6 +92,9 @@ class Suggestion(Base):
     needs_clarification: Mapped[bool] = mapped_column(Boolean, default=False)
     clarification_question: Mapped[str] = mapped_column(Text, default="")
     abstained: Mapped[bool] = mapped_column(Boolean, default=False)
+    evidence_for: Mapped[list | None] = mapped_column(JSON, nullable=True)  # Phase 7 audit
+    evidence_missing: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    clarification_answers: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # Phase 8: {qid: answer}
     provider: Mapped[str] = mapped_column(String(40), default="dev-fallback")
     model_version: Mapped[str] = mapped_column(String(80), default="")
     status: Mapped[str] = mapped_column(String(24), default="pending")  # pending|accepted|edited|rejected
@@ -102,7 +106,7 @@ class ApprovedMessage(Base):
     __tablename__ = "approved_messages"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    session_id: Mapped[int] = mapped_column(ForeignKey("communication_sessions.id", ondelete="CASCADE"), index=True)
+    session_id: Mapped[int | None] = mapped_column(ForeignKey("communication_sessions.id", ondelete="CASCADE"), index=True, nullable=True)  # Phase 9: card taps have no session
     suggestion_id: Mapped[int | None] = mapped_column(ForeignKey("reconstruction_suggestions.id", ondelete="SET NULL"), nullable=True)
     transcript_id: Mapped[int | None] = mapped_column(ForeignKey("transcripts.id", ondelete="SET NULL"), nullable=True)
     final_text: Mapped[str] = mapped_column(Text)
@@ -120,6 +124,7 @@ class Correction(Base):
     suggested_text: Mapped[str] = mapped_column(Text, default="")
     corrected_text: Mapped[str] = mapped_column(Text)
     kind: Mapped[str] = mapped_column(String(24), default="edit")
+    provenance: Mapped[str] = mapped_column(String(80), default="user-approved")  # Phase 5
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -131,6 +136,9 @@ class VocabularyEntry(Base):
     normalized: Mapped[str] = mapped_column(String(200), index=True)
     language: Mapped[str] = mapped_column(String(16), default="en")
     category: Mapped[str] = mapped_column(String(40), default="word")  # word|name|place|phrase
+    source: Mapped[str] = mapped_column(String(40), default="user-approved")  # Phase 5 provenance
+    status: Mapped[str] = mapped_column(String(16), default="approved")  # approved|provisional
+    version: Mapped[int] = mapped_column(Integer, default=1)
     times_used: Mapped[int] = mapped_column(Integer, default=0)
     times_corrected: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -144,7 +152,39 @@ class CommMemory(Base):
     kind: Mapped[str] = mapped_column(String(40), default="phrase")  # phrase|context|preference
     content: Mapped[str] = mapped_column(Text)
     language: Mapped[str] = mapped_column(String(16), default="en")
+    source: Mapped[str] = mapped_column(String(40), default="user-approved")  # Phase 5 provenance
+    provenance: Mapped[str] = mapped_column(String(80), default="user-approved")
     version: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ProfileRevision(Base):
+    """Version journal for rollback (Phase 6): snapshot BEFORE each edit."""
+    __tablename__ = "profile_revisions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    entity: Mapped[str] = mapped_column(String(16))  # vocab|memory
+    entity_id: Mapped[int] = mapped_column(Integer)
+    snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class CommCard(Base):
+    """Visual communication card (Phase 9): tap-to-speak message with an
+    emoji anchor, category, optional native-language label, and an
+    optional illustration (only from a verified provider — never
+    generated imagery presented as evidence of anything said)."""
+    __tablename__ = "communication_cards"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    label: Mapped[str] = mapped_column(String(200))
+    label_native: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    language: Mapped[str] = mapped_column(String(16), default="en")
+    emoji: Mapped[str] = mapped_column(String(16), default="")
+    category: Mapped[str] = mapped_column(String(24), default="personal")  # needs|requests|feelings|questions|emergency|personal
+    phrase: Mapped[str] = mapped_column(Text)
+    favorite: Mapped[bool] = mapped_column(Boolean, default=False)
+    image_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

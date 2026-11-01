@@ -5,7 +5,7 @@ from .. import models, schemas
 from ..core.database import get_db
 from ..core.deps import current_user
 from ..core.ratelimit import rate_limit
-from ..services import audio_intelligence, audio_service, language_service, meta_asr_service
+from ..services import audio_intelligence, audio_service, language_service, meta_asr_service, uncertainty_service
 
 router = APIRouter(prefix="/api/v1", tags=["transcription"])
 
@@ -36,7 +36,12 @@ async def _do_transcribe(body: schemas.TranscribeIn, user: models.User, db: Sess
         audio.quality = audio_intelligence.analyze_upload(data, audio.mime)
         db.commit()
     vocab_terms = [v.term for v in db.query(models.VocabularyEntry).filter(models.VocabularyEntry.user_id == user.id).all()]
-    result = await meta_asr_service.transcribe(data, audio.mime, body.language_hint, vocab_terms + body.keywords)
+    # Full orchestration, stored per transcript (Phase 3). With no secondary
+    # configured this makes the same single primary call as before.
+    multi = await meta_asr_service.transcribe_multi(
+        data, audio.mime, body.language_hint, vocab_terms + body.keywords, quality=audio.quality)
+    result = multi["primary"]
+    uncertainty = uncertainty_service.summarize(result, multi["comparison"], audio.quality)
     text = (result.get("text") or "").strip()
     if result.get("fallback") and not text:
         # Labelled dev path: allow manual transcript so the workflow still works.
@@ -48,9 +53,11 @@ async def _do_transcribe(body: schemas.TranscribeIn, user: models.User, db: Sess
     lang = result.get("language") or language_service.detect_language(text)["language"]
     if body.language_hint not in ("auto",) and result.get("fallback"):
         lang = body.language_hint
+    evidence = uncertainty_service.pack_evidence(multi, uncertainty)
     t = models.Transcript(audio_id=audio.id, text_original=text, language=lang,
                           provider=result["provider"], model_version=result.get("model_version", ""),
-                          confidence=result.get("confidence"), timestamps=result.get("timestamps"))
+                          confidence=result.get("confidence"), timestamps=result.get("timestamps"),
+                          evidence=evidence)
     db.add(t)
     db.commit()
     db.refresh(t)
@@ -59,7 +66,8 @@ async def _do_transcribe(body: schemas.TranscribeIn, user: models.User, db: Sess
             "provider": t.provider, "model_version": t.model_version,
             "detection": detected, "fallback": result.get("fallback", False),
             "audio_quality": audio.quality,
-            "rerecord_suggested": (audio.quality or {}).get("rerecord_suggested", False)}
+            "rerecord_suggested": (audio.quality or {}).get("rerecord_suggested", False),
+            "uncertainty": uncertainty}
 
 
 @router.post("/transcription/compare")
@@ -77,9 +85,11 @@ async def transcribe_compare(body: schemas.CompareIn, request: Request, user: mo
         audio.quality = audio_intelligence.analyze_upload(data, audio.mime)
         db.commit()
     vocab_terms = [v.term for v in db.query(models.VocabularyEntry).filter(models.VocabularyEntry.user_id == user.id).all()]
-    return await meta_asr_service.transcribe_multi(
+    out = await meta_asr_service.transcribe_multi(
         data, audio.mime, body.language_hint, vocab_terms + body.keywords,
         quality=audio.quality, force_secondary=body.force_secondary)
+    out["uncertainty"] = uncertainty_service.summarize(out["primary"], out["comparison"], audio.quality)
+    return out
 
 
 @router.post("/transcription/manual")
@@ -91,13 +101,20 @@ def transcribe_manual(audio_id: int, manual_transcript: str, language: str = "en
     text = " ".join(manual_transcript.split())
     if not text:
         raise HTTPException(status_code=422, detail="manual_transcript is empty")
+    manual_primary = {"text": text, "language": language, "provider": "manual-entry", "model_version": "user-typed-1"}
+    uncertainty = uncertainty_service.summarize(manual_primary, {"verdict": "single"}, audio.quality)
+    evidence = uncertainty_service.pack_evidence(
+        {"evidence_package": {"providers": [manual_primary], "model_confidence": None,
+                              "reliability_note": "Typed by the user — no speech recognition involved."},
+         "comparison": {"verdict": "single"}, "secondary": None}, uncertainty, manual=True)
     t = models.Transcript(audio_id=audio_id, text_original=text, language=language,
-                          provider="manual-entry", model_version="user-typed-1")
+                          provider="manual-entry", model_version="user-typed-1", evidence=evidence)
     db.add(t)
     db.commit()
     db.refresh(t)
     return {"transcript_id": t.id, "text_original": text, "language": language,
-            "provider": "manual-entry", "detection": language_service.detect_language(text)}
+            "provider": "manual-entry", "detection": language_service.detect_language(text),
+            "uncertainty": uncertainty}
 
 
 @router.post("/transcription/file")
