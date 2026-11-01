@@ -35,6 +35,10 @@ class TranscribeIn(BaseModel):
     keywords: list[str] = Field(default_factory=list, max_length=50)
 
 
+class CompareIn(TranscribeIn):
+    force_secondary: bool = False
+
+
 class ReconstructIn(BaseModel):
     transcript_id: int
     user_request: str = Field(default="", max_length=2000)

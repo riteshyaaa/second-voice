@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     META_WONDER_MODEL: str = "muse-wonder-1.0"
     META_IMAGE_MODEL: str = "muse-image-1.0"
 
+    SECOND_ASR_ENABLED: bool = False
+    SECOND_ASR_PROVIDER: str = ""
+
     TTS_PROVIDER: str = "webspeech-fallback"
     AZURE_SPEECH_KEY: str = ""
     AZURE_SPEECH_REGION: str = ""

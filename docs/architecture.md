@@ -49,14 +49,17 @@ Backend (`backend/app/`):
 - `api/transcription.py` — audio upload → ASR → transcript row.
 - `api/reconstruction.py` — suggest + alternatives + clarification.
 - `api/languages.py` — detect, translate (explicit), preferences.
-- `api/memory.py` — saved context, export.
-- `api/vocabulary.py` — approved words/phrases CRUD.
+- `api/memory.py` — vocabulary + saved context CRUD, export (there is no
+  separate `api/vocabulary.py`).
 - `api/feedback.py` — corrections, accept/reject, learning events,
   personalization dashboard stats.
 - `api/speech.py` — voices, synthesize (**requires confirmation**), stop is
   client-side + server marks stopped.
 - `api/settings.py` — preferences (language, script, TTS, learning, audio).
-- `services/meta_asr_service.py` — real Meta ASR client + labelled fallback.
+- `services/asr_providers.py` (Phase 2) — `ASRProvider` interface +
+  `MetaASRProvider` + registry; `services/asr_orchestration.py` —
+  conditional secondary routing, transcript comparison, evidence package.
+- `services/meta_asr_service.py` — thin facade (primary shape unchanged).
 - `services/muse_spark_service.py` — structured reconstruction via Spark.
 - `services/muse_wonder_service.py` — routed deep-reasoning only.
 - `services/muse_image_service.py` — optional visual cards.
@@ -64,8 +67,12 @@ Backend (`backend/app/`):
   *constrains* model output (negation/names/numbers guard, abstention).
 - `services/language_service.py` — heuristic detect (Devanagari ratio,
   code-switch lexicons) + provider hook; never auto-translates output.
-- `services/memory_service.py`, `personalization_service.py`,
-  `feedback_service.py`, `tts_service.py`, `audio_service.py`,
+- `services/personalization_service.py` (vocab map, correction patterns,
+  dashboard; also serves the memory endpoints — there is no separate
+  `memory_service.py`), `tts_service.py`, `audio_service.py`
+  (validation, storage, mono-16kHz normalization),
+  `services/audio_intelligence.py` (Phase 1: recording-quality verdicts on
+  the normalized PCM — peak/RMS/SNR/clipping/silence; advisory only),
   `evaluation_service.py` (WER/CER).
 - `core/` — config, security (JWT/bcrypt), db session, rate limit,
   logging, provider abstraction (`providers.py`).
@@ -92,7 +99,8 @@ user_preferences(user_id PK/FK, preferred_language, output_language, script,
   tts_voice, tts_speed, learning_enabled, save_rejections, use_history,
   audio_retention_days, theme, font_scale, reduced_motion, high_contrast)
 communication_sessions(id, user_id FK, title, language, status, created_at)
-audio_assets(id, session_id FK, file_path, mime, duration_s, consent_stored, created_at)
+audio_assets(id, session_id FK, file_path, mime, duration_s, quality JSON NULL
+  [Phase 1, migration 0002], consent_stored, created_at)
 transcripts(id, audio_id FK, text_original, language, provider, model_version,
   confidence, timestamps JSON, created_at)        ← NEVER updated by AI
 reconstruction_suggestions(id, transcript_id FK, proposed_text, explanation,

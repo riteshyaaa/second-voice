@@ -10,14 +10,22 @@ Auth: `Authorization: Bearer <JWT>`. All errors are JSON (`detail` string or
 
 ## Sessions & audio
 - `POST /api/v1/audio/sessions {title, language}` → session
-- `POST /api/v1/audio/sessions/{id}/audio` (raw audio bytes, `Content-Type: audio/*`, ≤15 MB)
-- `GET /api/v1/sessions` · `GET /api/v1/sessions/{id}` (full audit trail)
+- `POST /api/v1/audio/sessions/{id}/audio` (raw audio bytes, `Content-Type: audio/*`, ≤15 MB) → `{audio_id, duration_s, mime, audio_quality, rerecord_suggested}`
+- `GET /api/v1/sessions` · `GET /api/v1/sessions/{id}` (full audit trail; items carry `audio_quality`)
+
+## Audio quality (Phase 1, see `phase-1-audio-intelligence.md`)
+Every upload is assessed on the normalized PCM sent to ASR. `audio_quality`
+is `{analyzed, quality: good|usable|poor|unknown, issues[], advice[],
+rerecord_suggested, duration_s, peak, rms, snr_db, silence_fraction,
+clipping_fraction, longest_silence_s, longest_speech_s}`. Advisory only —
+transcription always proceeds.
 
 ## Transcription (Muse Voice Transcribe)
-- `POST /api/v1/transcription {audio_id, language_hint, keywords[]}` → `{transcript_id, text_original, language, provider, detection}`
+- `POST /api/v1/transcription {audio_id, language_hint, keywords[]}` → `{transcript_id, text_original, language, provider, detection, audio_quality, rerecord_suggested}`
   - 409 `ASR_FALLBACK_NO_KEY` when no `META_API_KEY` — use manual entry.
 - `POST /api/v1/transcription/manual?audio_id=&manual_transcript=&language=` (labelled `manual-entry`)
-- `POST /api/v1/transcription/file?session_id=&language_hint=` (multipart upload + transcribe)
+- `POST /api/v1/transcription/file?session_id=&language_hint=` (multipart upload + transcribe, also returns `audio_quality`)
+- `POST /api/v1/transcription/compare {audio_id, language_hint, keywords[], force_secondary?}` (Phase 2) → `{primary, secondary|null, comparison{verdict: single|agree|disagree|both_empty, word_diffs[], meaning_divergence[], language_match}, evidence_package}`
 
 ## Reconstruction (Muse Spark, evidence-first)
 - `POST /api/v1/reconstruction {transcript_id, user_request}` → suggestion with `original_text, proposed_text, explanation, changed_words[], alternatives[], needs_clarification, clarification_question, abstained, meaning_risk, provider`

@@ -62,6 +62,26 @@ async def _do_transcribe(body: schemas.TranscribeIn, user: models.User, db: Sess
             "rerecord_suggested": (audio.quality or {}).get("rerecord_suggested", False)}
 
 
+@router.post("/transcription/compare")
+async def transcribe_compare(body: schemas.CompareIn, request: Request, user: models.User = Depends(current_user), db: Session = Depends(get_db)):
+    """Full multi-engine result: primary + conditional secondary + comparison.
+
+    Default (no secondary configured): Meta-only with a "single" comparison.
+    Never invents a second opinion — secondary appears only from a real engine.
+    """
+    rate_limit(request)
+    audio = _session_owned(db, user.id, body.audio_id)
+    prefs = db.query(models.UserPreference).filter(models.UserPreference.user_id == user.id).first()
+    data = audio_service.load_audio(audio.file_path, prefs.audio_retention_days if prefs else 30)
+    if audio.quality is None:
+        audio.quality = audio_intelligence.analyze_upload(data, audio.mime)
+        db.commit()
+    vocab_terms = [v.term for v in db.query(models.VocabularyEntry).filter(models.VocabularyEntry.user_id == user.id).all()]
+    return await meta_asr_service.transcribe_multi(
+        data, audio.mime, body.language_hint, vocab_terms + body.keywords,
+        quality=audio.quality, force_secondary=body.force_secondary)
+
+
 @router.post("/transcription/manual")
 def transcribe_manual(audio_id: int, manual_transcript: str, language: str = "en",
                       user: models.User = Depends(current_user), db: Session = Depends(get_db)):
