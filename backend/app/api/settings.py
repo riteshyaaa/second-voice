@@ -49,6 +49,8 @@ def delete_all(user: models.User = Depends(current_user), db: Session = Depends(
     for s in sessions:
         for a in s.audios:
             audio_service.delete_audio(a.file_path)
+            for d in a.derivatives:
+                audio_service.delete_audio(d.file_path)
     for tts in db.query(models.TTSRequest).join(models.ApprovedMessage).filter(models.ApprovedMessage.user_id == user.id).all():
         audio_service.delete_audio(tts.audio_path)
     for model in (models.LearningEvent, models.Correction, models.VocabularyEntry, models.CommMemory,

@@ -63,6 +63,35 @@ class AudioAsset(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     session: Mapped[CommSession] = relationship(back_populates="audios")
     transcripts: Mapped[list["Transcript"]] = relationship(back_populates="audio", cascade="all, delete-orphan")
+    derivatives: Mapped[list["AudioDerivative"]] = relationship(back_populates="parent", cascade="all, delete-orphan")
+
+
+DERIVATIVE_KINDS = ("normalized", "enhanced", "restored", "generated")
+
+
+class AudioDerivative(Base):
+    """CLARIS P1: processing derivative of an immutable original.
+
+    The original file is never modified; each derivative is a new file with
+    full lineage (parent, operation, model, config). `enhanced`/`restored`/
+    `generated` kinds are reserved for P4/P5/P9 — only `normalized` is
+    produced in P1.
+    """
+    __tablename__ = "audio_derivatives"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    parent_asset_id: Mapped[int] = mapped_column(ForeignKey("audio_assets.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(16), default="normalized")
+    operation: Mapped[str] = mapped_column(String(80), default="")
+    model_version: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    file_path: Mapped[str] = mapped_column(String(512))
+    mime: Mapped[str] = mapped_column(String(80), default="audio/wav")
+    duration_s: Mapped[float] = mapped_column(Float, default=0.0)
+    quality: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # output QA of this derivative
+    status: Mapped[str] = mapped_column(String(16), default="ready")
+    error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    parent: Mapped[AudioAsset] = relationship(back_populates="derivatives")
 
 
 class Transcript(Base):

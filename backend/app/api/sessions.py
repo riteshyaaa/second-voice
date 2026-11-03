@@ -60,6 +60,51 @@ async def upload_audio(session_id: int, request: Request, user: models.User = De
             "audio_quality": quality, "rerecord_suggested": quality.get("rerecord_suggested", False)}
 
 
+@router.post("/audio/sessions/{session_id}/audio/{audio_id}/normalize")
+def normalize_audio(session_id: int, audio_id: int, user: models.User = Depends(current_user), db: Session = Depends(get_db)):
+    """CLARIS P1: build (idempotent) the normalized derivative of an original.
+
+    The original is only read. Only `normalized` is produced in P1;
+    enhanced/restored/generated arrive with the restoration pipeline.
+    """
+    from ..services import audio_service
+
+    s = db.query(models.CommSession).filter(models.CommSession.id == session_id, models.CommSession.user_id == user.id).first()
+    if s is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    audio = db.query(models.AudioAsset).filter(models.AudioAsset.id == audio_id, models.AudioAsset.session_id == session_id).first()
+    if audio is None:
+        raise HTTPException(status_code=404, detail="Audio not found")
+    try:
+        d = audio_service.derive_normalized(db, audio)
+    except FileNotFoundError:
+        raise HTTPException(status_code=410, detail="Audio expired or deleted per retention policy.")
+    except ValueError as exc:
+        raise HTTPException(status_code=415, detail=f"Could not decode audio: {exc}")
+    return {"derivative_id": d.id, "kind": d.kind, "operation": d.operation, "model_version": d.model_version,
+            "duration_s": d.duration_s, "quality": d.quality, "status": d.status}
+
+
+@router.get("/audio/sessions/{session_id}/audio/{audio_id}/derivatives/{derivative_id}")
+def download_derivative(session_id: int, audio_id: int, derivative_id: int, user: models.User = Depends(current_user), db: Session = Depends(get_db)):
+    """CLARIS P1: replay a processing derivative (ownership + retention checked)."""
+    from fastapi.responses import FileResponse
+
+    from ..services import audio_service
+
+    s = db.query(models.CommSession).filter(models.CommSession.id == session_id, models.CommSession.user_id == user.id).first()
+    if s is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    d = db.query(models.AudioDerivative).join(models.AudioAsset).filter(
+        models.AudioDerivative.id == derivative_id, models.AudioDerivative.parent_asset_id == audio_id,
+        models.AudioAsset.session_id == session_id).first()
+    if d is None:
+        raise HTTPException(status_code=404, detail="Derivative not found")
+    prefs = db.query(models.UserPreference).filter(models.UserPreference.user_id == user.id).first()
+    audio_service.load_audio(d.file_path, prefs.audio_retention_days if prefs else 30)
+    return FileResponse(d.file_path, media_type=d.mime or "audio/wav", filename=f"secondvoice_{d.kind}_{derivative_id}.wav")
+
+
 @router.get("/sessions")
 def list_sessions(user: models.User = Depends(current_user), db: Session = Depends(get_db)):
     rows = db.query(models.CommSession).filter(models.CommSession.user_id == user.id).order_by(models.CommSession.id.desc()).limit(50).all()
@@ -82,6 +127,9 @@ def session_detail(session_id: int, user: models.User = Depends(current_user), d
                 "suggestions": [{"id": x.id, "proposed": x.proposed_text, "status": x.status, "abstained": x.abstained,
                                  "evidence_for": x.evidence_for or [],
                                  "evidence_missing": x.evidence_missing or []} for x in t.suggestions],
+                "derivatives": [{"id": d.id, "kind": d.kind, "operation": d.operation,
+                                 "model_version": d.model_version, "status": d.status,
+                                 "duration_s": d.duration_s} for d in audio.derivatives],
             })
     approved = db.query(models.ApprovedMessage).filter(models.ApprovedMessage.session_id == session_id).all()
     return {"id": s.id, "title": s.title, "language": s.language, "items": items,
