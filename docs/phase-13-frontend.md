@@ -68,3 +68,17 @@ no TTS audio, and the labeled demo sample. Both legitimate.
   at the lib level; pages verified via build + bundle + API probes.
 - Illustration endpoint still 409 (unverified Muse Image shapes) — no UI
   button added for it.
+
+## Follow-up fix: browser recordings never decoded (found live)
+
+Symptom: workspace showed "Live transcription is unavailable (no API key)"
+even with a working key — that message fired for ANY transcribe failure.
+Root cause: Chrome records `audio/webm` (Opus), Safari `audio/mp4` (AAC);
+the server's `miniaudio` decoder handles neither, so every mic recording
+failed at decode (415) while WAV uploads worked. Fix (frontend only):
+`lib/audio.ts` `toWav16kBlob()` converts recordings to 16 kHz mono WAV
+in-browser (Web Audio decode + resample + PCM16 encode, `encodeWavPCM`
+unit-tested); the workspace uploads WAV and now surfaces the server's real
+error text instead of the key message. Server decoder path untouched and
+exact. Verified: tsc clean, vitest 15/15, `next build` clean, container
+rebuilt with the fix in its serving bundle.

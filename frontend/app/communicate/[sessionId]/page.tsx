@@ -6,7 +6,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import DiffView from "@/components/DiffView";
 import { api, speakBrowser, stopBrowserSpeech } from "@/lib/api";
 import { resolveAudioUrl, tapToSpeak, type Card } from "@/lib/cards";
-import { Recorder } from "@/lib/audio";
+import { Recorder, toWav16kBlob } from "@/lib/audio";
 import { CLIP_DATA, type ClipKey } from "@/lib/design-system";
 
 type Suggestion = {
@@ -179,15 +179,23 @@ export default function Workspace() {
       } else {
         const blob = await rec.current.stop();
         setRecording(false);
-        setStatus("Transcribing…");
-        const up = (await api.uploadAudio(Number(sessionId), blob)) as { audio_id: number };
+        let wav: Blob;
         try {
-          const t = (await api.transcribe(up.audio_id, "auto")) as { transcript_id: number; text_original: string; language: string };
+          setStatus("Preparing audio…");
+          wav = await toWav16kBlob(blob);
+        } catch {
+          setStatus("This recording could not be read by your browser. Type your sentence below and press Understand.");
+          return;
+        }
+        setStatus("Transcribing…");
+        const up = (await api.uploadAudio(Number(sessionId), wav)) as { audio_id: number };
+        try {
+          const t = (await api.transcribe(up.audio_id, lang)) as { transcript_id: number; text_original: string; language: string };
           (window as unknown as { _tid?: number })._tid = t.transcript_id;
           setTranscript(t.text_original);
           await runPipeline(t.transcript_id, t.language);
-        } catch {
-          setStatus("Live transcription is unavailable (no API key). Type your sentence below and press Understand.");
+        } catch (e) {
+          setStatus(`Transcription failed: ${e instanceof Error ? e.message : "unknown error"}. Your recording is saved — type the sentence below and press Understand.`);
           (window as unknown as { _audioId?: number })._audioId = up.audio_id;
         }
       }
@@ -315,6 +323,10 @@ export default function Workspace() {
             </button>
           ))}
           <button onClick={playSample} className="min-h-[44px] px-space-md py-space-xs rounded-full text-label-sm font-label-sm bg-surface-container">Play sample aloud</button>
+          <span className="font-label-sm text-label-sm text-on-surface-variant hidden lg:inline">Sample text:</span>
+          {(["en", "hi", "mr"] as const).map((l) => (
+            <button key={l} onClick={() => setClipLang(l)} aria-pressed={clipLang === l} className={`min-h-[44px] px-3 rounded-full text-label-sm font-label-sm ${clipLang === l ? "bg-primary text-on-primary" : "bg-surface-container"}`}>{l === "en" ? "EN" : l === "hi" ? "हिं" : "मर"}</button>
+          ))}
         </div>
       </aside>
 
@@ -370,6 +382,12 @@ export default function Workspace() {
               </div>
               <div className="w-full flex-1 flex flex-col gap-space-xs">
                 <div className="flex items-center justify-between font-label-sm text-label-sm text-on-surface-variant px-space-xs"><span>{recording ? "Recording…" : "Sound level (display only)"}</span></div>
+                <div className="flex items-center gap-2 px-space-xs" role="group" aria-label="Language you will speak">
+                  <span className="font-label-sm text-label-sm text-on-surface-variant">I speak:</span>
+                  {(["en", "hi", "mr"] as const).map((l) => (
+                    <button key={l} type="button" onClick={() => setLang(l)} aria-pressed={lang === l} className={`min-h-[48px] px-4 rounded-full font-semibold text-label-sm font-label-sm ${lang === l ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant"}`}>{l === "en" ? "English" : l === "hi" ? "हिन्दी" : "मराठी"}</button>
+                  ))}
+                </div>
                 <svg className="w-full h-24 text-primary bg-surface-container rounded-lg p-2" fill="none" viewBox="0 0 600 80" preserveAspectRatio="none" aria-hidden>
                   <path className="opacity-90" d="M0,40 Q15,10 30,40 T60,40 T90,20 T120,60 T150,40 T180,5 T210,75 T240,40 T270,25 T300,55 T330,40 T360,15 T390,65 T420,40 T450,30 T480,50 T510,40 T540,10 T570,70 T600,40" stroke="currentColor" strokeLinecap="round" strokeWidth="2.5" />
                   <path className="opacity-40" d="M0,40 Q20,30 40,40 T80,40 T120,25 T160,55 T200,40 T240,15 T280,65 T320,40 T360,35 T400,45 T440,40 T480,25 T520,55 T560,40 T600,40" stroke="#a0d0c6" strokeLinecap="round" strokeWidth="1.5" />
@@ -394,10 +412,8 @@ export default function Workspace() {
             </article>
             <article className="bg-surface-container-high rounded-xl p-space-lg flex flex-col gap-space-sm">
               <div className="flex items-center justify-between"><h2 className="font-label-lg text-label-lg font-bold text-primary">Suggested clearer message</h2>{sug && <span className="font-label-sm text-label-sm bg-primary/10 text-primary px-2.5 py-1 rounded-md font-bold">{sug.abstained ? "Unsure — check me" : `${sug.provider} · ${sug.meaning_risk} risk`}</span>}</div>
-              <div className="flex items-center gap-space-xs bg-surface-container p-1 rounded-lg self-start" role="tablist" aria-label="Script">
-                {(["en", "hi", "mr"] as const).map((l) => (
-                  <button key={l} onClick={() => setClipLang(l)} className={`px-space-sm py-0.5 rounded text-label-sm font-label-sm ${clipLang === l ? "bg-primary text-on-primary font-bold" : "text-on-surface hover:bg-surface-container-high"}`}>{l === "en" ? "English" : l === "hi" ? "हिन्दी (Hindi)" : "मराठी (Marathi)"}</button>
-                ))}
+              <div className="flex items-center gap-space-xs bg-surface-container px-3 py-1 rounded-lg self-start" aria-label="Detected language">
+                <span className="font-label-sm text-label-sm text-on-surface-variant">Heard as: <strong className="text-on-surface">{lang === "hi" ? "हिन्दी" : lang === "mr" ? "मराठी" : lang === "hinglish" ? "Hinglish" : "English"}</strong></span>
               </div>
               <div className="bg-surface-container-lowest p-space-md rounded-lg min-h-[140px] font-body-xl text-body-xl text-on-surface">{sug ? (edit || sug.proposed_text) : "Record, type, or load a sample above to get a suggestion here."}</div>
               {sug && <p className="font-body-sm text-body-sm text-on-surface-variant"><strong className="text-on-surface">Why this change:</strong> {sug.explanation}</p>}
@@ -444,11 +460,11 @@ export default function Workspace() {
 
           <section aria-label="Confirmation" className="bg-surface-container rounded-xl p-space-md flex flex-wrap items-center gap-space-md">
             <div className="flex flex-wrap items-center gap-space-sm flex-1">
-              <button onClick={() => acceptBackend("accept")} disabled={!sug} className="min-h-[56px] px-space-lg rounded-xl bg-primary text-on-primary font-label-lg text-label-lg font-bold disabled:opacity-40">Accept suggestion</button>
-              <button onClick={() => acceptBackend("edit")} disabled={!sug} className="min-h-[56px] px-space-lg rounded-xl bg-surface-container-high text-on-surface font-label-lg text-label-lg disabled:opacity-40">Confirm my edit</button>
-              <button onClick={() => editRef.current?.focus()} className="min-h-[56px] px-space-lg rounded-xl bg-surface-container-high text-on-surface font-label-lg text-label-lg">Edit first</button>
-              <button onClick={reject} className="min-h-[56px] px-space-md rounded-xl bg-surface-container-high text-on-surface-variant font-label-lg text-label-lg">Keep original</button>
-              <button onClick={savePhrase} className="min-h-[56px] px-space-md rounded-xl bg-surface-container-high text-on-surface-variant font-label-lg text-label-lg">Save to vocabulary</button>
+              <button onClick={() => acceptBackend("accept")} disabled={!sug} className="min-h-[56px] px-space-lg rounded-xl bg-primary text-on-primary font-label-lg text-label-lg font-bold disabled:opacity-40 flex items-center gap-2"><span className="material-symbols-outlined" aria-hidden>check_circle</span>Accept suggestion</button>
+              <button onClick={() => acceptBackend("edit")} disabled={!sug} className="min-h-[56px] px-space-lg rounded-xl bg-surface-container-high text-on-surface font-label-lg text-label-lg disabled:opacity-40 flex items-center gap-2"><span className="material-symbols-outlined" aria-hidden>edit_note</span>Confirm my edit</button>
+              <button onClick={() => editRef.current?.focus()} className="min-h-[56px] px-space-lg rounded-xl bg-surface-container-high text-on-surface font-label-lg text-label-lg flex items-center gap-2"><span className="material-symbols-outlined" aria-hidden>edit</span>Edit first</button>
+              <button onClick={reject} className="min-h-[56px] px-space-md rounded-xl bg-surface-container-high text-on-surface-variant font-label-lg text-label-lg flex items-center gap-2"><span className="material-symbols-outlined" aria-hidden>replay</span>Keep original</button>
+              <button onClick={savePhrase} className="min-h-[56px] px-space-md rounded-xl bg-surface-container-high text-on-surface-variant font-label-lg text-label-lg flex items-center gap-2"><span className="material-symbols-outlined" aria-hidden>bookmark_add</span>Save to vocabulary</button>
             </div>
             <span className="text-on-surface-variant font-label-sm text-label-sm">{approvedId ? <span className="text-primary font-bold">Confirmed — only this text can be spoken</span> : "Awaiting your confirmation"}</span>
           </section>
@@ -471,8 +487,8 @@ export default function Workspace() {
               <label className="flex flex-col gap-1 font-label-sm text-label-sm text-on-surface-variant">Speaking speed <span className="text-primary font-bold">{rate.toFixed(2)}x</span><input type="range" min={0.5} max={1.5} step={0.05} value={rate} onChange={(e) => setRate(Number(e.target.value))} className="w-full accent-primary" aria-label="Speaking speed" /></label>
             </div>
             <div className="flex flex-col sm:flex-row items-center gap-space-md">
-              <button onClick={speak} disabled={!approvedId} className={`w-full flex-1 min-h-[64px] px-space-xl rounded-xl font-label-lg text-label-lg font-bold ${approvedId ? "bg-primary text-on-primary" : "bg-surface-container-highest cursor-not-allowed"}`}>
-                {approvedId ? "Speak confirmed text" : "Speak (locked until confirmed)"}
+              <button onClick={speak} disabled={!approvedId} className={`w-full flex-1 min-h-[64px] px-space-xl rounded-xl font-label-lg text-label-lg font-bold flex items-center justify-center gap-3 ${approvedId ? "bg-primary text-on-primary" : "bg-surface-container-highest cursor-not-allowed"}`}>
+                <span className="material-symbols-outlined text-[28px]" aria-hidden>volume_up</span>{approvedId ? "Speak confirmed text" : "Speak (locked until confirmed)"}
               </button>
               {audioUrl && <audio ref={audioEl} className="w-full" controls src={audioUrl} aria-label="Confirmed speech playback" />}
               <button onClick={() => { stopBrowserSpeech(); audioEl.current?.pause(); setAudioUrl(""); }} className="min-h-[64px] px-space-md rounded-xl bg-surface-container text-on-surface font-label-md text-label-md">Stop</button>
