@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     SECOND_ASR_ENABLED: bool = False
     SECOND_ASR_PROVIDER: str = ""
 
+    LOCAL_ASR_MODEL: str = ""  # e.g. Systran/faster-whisper-small; empty = unconfigured
+    LOCAL_ASR_DEVICE: str = "cpu"
+    LOCAL_ASR_COMPUTE: str = "int8"
+
     TTS_PROVIDER: str = "webspeech-fallback"
     AZURE_SPEECH_KEY: str = ""
     AZURE_SPEECH_REGION: str = ""

@@ -145,3 +145,23 @@ def test_upload_returns_quality_and_rerecord_nudge():
                 params={"audio_id": poor["audio_id"], "manual_transcript": "hello", "language": "en"}, headers=h)
     detail = client.get(f"/api/v1/sessions/{s['id']}", headers=h).json()
     assert detail["items"][0]["audio_quality"]["quality"] == "poor"
+
+
+def test_float32_wav_normalizes():
+    """CLARIS P2 regression: dataset/DAW float32 WAVs decode (fmt tag 3)."""
+    import io
+    import wave as wav_mod
+
+    from app.services.audio_service import normalize_to_wav16k
+
+    n = 16000
+    buf = io.BytesIO()
+    with wav_mod.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(4)
+        w.setframerate(16000)
+        w.writeframes(struct.pack("<%df" % n, *([0.25] * n)))
+    out = normalize_to_wav16k(buf.getvalue(), "audio/wav")
+    with wav_mod.open(io.BytesIO(out), "rb") as w:
+        assert (w.getnchannels(), w.getsampwidth(), w.getframerate()) == (1, 2, 16000)
+        assert w.readframes(1) != b"\x00\x00"  # signal survives

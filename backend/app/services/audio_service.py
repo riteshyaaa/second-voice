@@ -65,6 +65,48 @@ def delete_audio(path: str) -> None:
         pass
 
 
+NORMALIZE_VERSION = "normalize_to_wav16k-1"
+
+
+def derive_normalized(db, asset, quality: dict | None = None):
+    """CLARIS P1: build (or reuse) the normalized derivative of an original.
+
+    Reads the ORIGINAL file, never modifies it; writes a sibling file and a
+    lineage row (parent, operation, version). Idempotent per
+    (parent, operation, version): reruns return the existing row.
+    """
+    from .. import models
+    from . import audio_intelligence
+
+    existing = db.query(models.AudioDerivative).filter(
+        models.AudioDerivative.parent_asset_id == asset.id,
+        models.AudioDerivative.operation == "normalize_to_wav16k",
+        models.AudioDerivative.model_version == NORMALIZE_VERSION).first()
+    if existing is not None:
+        return existing
+    with open(asset.file_path, "rb") as f:
+        original = f.read()
+    before = len(original)
+    wav = normalize_to_wav16k(original, asset.mime or "audio/wav")
+    base, _ = os.path.splitext(asset.file_path)
+    path = f"{base}_normalized_16k.wav"
+    with open(path, "wb") as f:
+        f.write(wav)
+    qa = quality if quality is not None else audio_intelligence.analyze_wav16k(wav)
+    import wave as _wave
+
+    with _wave.open(path, "rb") as w:
+        duration = w.getnframes() / max(w.getframerate(), 1)
+    row = models.AudioDerivative(
+        parent_asset_id=asset.id, kind="normalized", operation="normalize_to_wav16k",
+        model_version=NORMALIZE_VERSION, config={"source_bytes": before, "output": "mono s16le 16kHz WAV"},
+        file_path=path, mime="audio/wav", duration_s=duration, quality=qa, status="ready")
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
 def _mono16(pcm: bytes, channels: int) -> bytes:
     if channels == 1:
         return pcm
@@ -73,6 +115,20 @@ def _mono16(pcm: bytes, channels: int) -> bytes:
     a = array.array("h", pcm)
     mono = array.array("h", (int((a[i] + a[i + 1]) / 2) for i in range(0, len(a) - 1, 2)))
     return mono.tobytes()
+
+
+def _float_to_s16(pcm: bytes, channels: int) -> bytes:
+    """Convert float32 mono/stereo frames to int16 mono."""
+    import array
+
+    n = len(pcm) // (4 * channels)
+    a = array.array("f", pcm[:n * 4 * channels])
+    if channels == 1:
+        vals = a
+    else:
+        vals = array.array("f", (sum(a[i * channels:(i + 1) * channels]) / channels for i in range(n)))
+    out = array.array("h", (max(-32768, min(32767, int(round(v * 32767)))) for v in vals))
+    return out.tobytes()
 
 
 def resample_linear(pcm: bytes, src_rate: int, dst_rate: int = 16000) -> bytes:
@@ -106,14 +162,29 @@ def normalize_to_wav16k(data: bytes, mime: str) -> bytes:
 
     mt = (mime or "").split(";")[0].strip().lower()
     if mt in ("audio/wav", "audio/x-wav", "audio/vnd.wave"):
-        with wave.open(io.BytesIO(data), "rb") as w:
-            n, rate, ch, sw = w.getnframes(), w.getframerate(), w.getnchannels(), w.getsampwidth()
-            if ch == 1 and sw == 2 and rate in (16000, 24000):
-                return data  # already compliant; don't touch a sample
-            pcm = w.readframes(n)
-            if sw != 2:
-                raise ValueError(f"unsupported WAV sample width: {sw * 8}-bit")
-            pcm = _mono16(pcm, ch)
+        try:
+            w = wave.open(io.BytesIO(data), "rb")
+        except wave.Error:
+            w = None
+        if w is None:
+            # Non-PCM WAV (e.g. IEEE float) falls through to the decoder below.
+            import miniaudio
+
+            dec = miniaudio.decode(data, output_format=miniaudio.SampleFormat.SIGNED16)
+            rate = dec.sample_rate
+            pcm = _mono16(bytes(dec.samples), dec.nchannels)
+        else:
+            with w:
+                n, rate, ch, sw = w.getnframes(), w.getframerate(), w.getnchannels(), w.getsampwidth()
+                if ch == 1 and sw == 2 and rate in (16000, 24000):
+                    return data  # already compliant; don't touch a sample
+                raw = w.readframes(n)
+                if sw == 4:
+                    pcm = _float_to_s16(raw, ch)
+                elif sw == 2:
+                    pcm = _mono16(raw, ch)
+                else:
+                    raise ValueError(f"unsupported WAV sample width: {sw * 8}-bit")
     else:
         import miniaudio
 

@@ -10,6 +10,8 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 httpx==0.28.1
+faster-whisper==1.2.1
+numpy==2.5.4
 miniaudio==1.71
 python-multipart==0.0.20
 email-validator==2.2.0

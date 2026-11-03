@@ -1,0 +1,225 @@
+{
+ "rows": [
+  {
+   "file": "bench-clips/hi/hi_in_0.wav",
+   "language": "hi",
+   "hypothesis": "कुछ आँगो में आज्टर केंद्रक होता है, जिस का मतलब यहां की उन में थोड़े, या बिना किसी जटके से तुटनें की प्रवत्ती होती है.",
+   "wer": 0.4583,
+   "cer": 0.2069,
+   "latency_s": 93.41,
+   "failure": null,
+   "provider": "local-whisper",
+   "model": "Systran/faster-whisper-small",
+   "engine": "local-whisper"
+  },
+  {
+   "file": "bench-clips/hi/hi_in_1.wav",
+   "language": "hi",
+   "hypothesis": "तेलीविशन लिपोटो में प्लांट से निकलनेवाला सबे दुवा दिखाया गया है",
+   "wer": 0.5,
+   "cer": 0.1765,
+   "latency_s": 8.5,
+   "failure": null,
+   "provider": "local-whisper",
+   "model": "Systran/faster-whisper-small",
+   "engine": "local-whisper"
+  },
+  {
+   "file": "bench-clips/hi/hi_in_2.wav",
+   "language": "hi",
+   "hypothesis": "इंटरनेट पर ये खोज सत्रुता पुर्न पर्यावरं पाटक्रम के लिए अख्सर आप को एक इस्ठान नि कमपनी का पता प्रदान करेगी",
+   "wer": 0.6111,
+   "cer": 0.1635,
+   "latency_s": 10.82,
+   "failure": null,
+   "provider": "local-whisper",
+   "model": "Systran/faster-whisper-small",
+   "engine": "local-whisper"
+  },
+  {
+   "file": "bench-clips/hi/hi_in_3.wav",
+   "language": "hi",
+   "hypothesis": "इसे केमिकल का पीईच कहा जाता है, आप लाल गोभी के जूस को इस्तमाल कर के एक संकेट तक बना सकते हैं",
+   "wer": 0.35,
+   "cer": 0.1149,
+   "latency_s": 9.21,
+   "failure": null,
+   "provider": "local-whisper",
+   "model": "Systran/faster-whisper-small",
+   "engine": "local-whisper"
+  },
+  {
+   "file": "bench-clips/hi/hi_in_4.wav",
+   "language": "hi",
+   "hypothesis": "सब से नज्दी की सिरे पर क्रस्ट की मोटाए करिव सब तर किलो मीटर है और सब से दूर की सिरे पर या सो किलो मीटर है",
+   "wer": 0.8947,
+   "cer": 0.1837,
+   "latency_s": 9.56,
+   "failure": null,
+   "provider": "local-whisper",
+   "model": "Systran/faster-whisper-small",
+   "engine": "local-whisper"
+  },
+  {
+   "file": "bench-clips/hi/hi_in_5.wav",
+   "language": "hi",
+   "hypothesis": "केवल दो हवतो में आमेरी कीो और फूरी फ्रेंच भलो ने, दक्षिनी फ्रान्स को मुक्त कर दिया था, और चर्मिनी कीोर बड़ रहे थे.",
+   "wer": 0.5,
+   "cer": 0.2288,
+   "latency_s": 10.65,
+   "failure": null,
+   "provider": "local-whisper",
+   "model": "Systran/faster-whisper-small",
+   "engine": "local-whisper"
+  },
+  {
+   "file": "bench-clips/hi/hi_in_6.wav",
+   "language": "hi",
+   "hypothesis": "M.S. भीमारी के नद्री तन्त्र का तन्त्र पर असर करती है जिस में दिमांग इस पैनल कोर्ड और अप्टिक नर्व शामिल है",
+   "wer": 0.8889,
+   "cer": 0.22,
+   "latency_s": 9.95,
+   "failure": null,
+   "provider": "local-whisper",
+   "model": "Systran/faster-whisper-small",
+   "engine": "local-whisper"
+  },
+  {
+   "file": "bench-clips/hi/hi_in_7.wav",
+   "language": "hi",
+   "hypothesis": "और त्रान्स्पूट सिस्टम का प्योख करता है। लक्बक् सबी लोक त्रान्स्पूट सिस्टम के बारे में शिकायत करते है।",
+   "wer": 0.6,
+   "cer": 0.4331,
+   "latency_s": 38.68,
+   "failure": null,
+   "provider": "local-whisper",
+   "model": "Systran/faster-whisper-small",
+   "engine": "local-whisper"
+  },
+  {
+   "file": "bench-clips/en/en_us_0.wav",
+   "language": "en",
+   "hypothesis": "However, due to the slow communication channels, styles in the West could lag behind by 25 to 30 years.",
+   "wer": 0.0588,
+   "cer": 0.0606,
+   "latency_s": 6.77,
+   "failure": null,
+   "provider": "local-whisper",
+   "model": "Systran/faster-whisper-small",
+   "engine": "local-whisper"
+  },
+  {
+   "file": "bench-clips/en/en_us_1.wav",
+   "language": "en",
+   "hypothesis": "All nows alongside the world's safe for you always begin with a capital letter even in the middle of a sentence.",
+   "wer": 0.1429,
+   "cer": 0.0833,
+   "latency_s": 6.79,
+   "failure": null,
+   "provider": "local-whisper",
+   "model": "Systran/faster-whisper-small",
+   "engine": "local-whisper"
+  },
+  {
+   "file": "bench-clips/en/en_us_2.wav",
+   "language": "en",
+   "hypothesis": "The cabbage juice changes color depending on how acidic, basic alkaline the chemical is.",
+   "wer": 0.0667,
+   "cer": 0.0562,
+   "latency_s": 5.99,
+   "failure": null,
+   "provider": "local-whisper",
+   "model": "Systran/faster-whisper-small",
+   "engine": "local-whisper"
+  },
+  {
+   "file": "bench-clips/en/en_us_3.wav",
+   "language": "en",
+   "hypothesis": "Many people don't think about them as dinosaurs because they have feathers and can fly.",
+   "wer": 0.0,
+   "cer": 0.0233,
+   "latency_s": 6.15,
+   "failure": null,
+   "provider": "local-whisper",
+   "model": "Systran/faster-whisper-small",
+   "engine": "local-whisper"
+  },
+  {
+   "file": "bench-clips/en/en_us_4.wav",
+   "language": "en",
+   "hypothesis": "The hospital has followed protocol for infection control, including separating the patient from others to prevent possible infection of others.",
+   "wer": 0.0,
+   "cer": 0.0213,
+   "latency_s": 6.73,
+   "failure": null,
+   "provider": "local-whisper",
+   "model": "Systran/faster-whisper-small",
+   "engine": "local-whisper"
+  },
+  {
+   "file": "bench-clips/en/en_us_5.wav",
+   "language": "en",
+   "hypothesis": "The Northern Mariana's Emergency Management Office said that there were no damages reported in the nation.",
+   "wer": 0.0625,
+   "cer": 0.0769,
+   "latency_s": 6.59,
+   "failure": null,
+   "provider": "local-whisper",
+   "model": "Systran/faster-whisper-small",
+   "engine": "local-whisper"
+  },
+  {
+   "file": "bench-clips/en/en_us_6.wav",
+   "language": "en",
+   "hypothesis": "20th century research has shown that there are two pools of genetic variation hidden and expressed.",
+   "wer": 0.0625,
+   "cer": 0.0777,
+   "latency_s": 6.34,
+   "failure": null,
+   "provider": "local-whisper",
+   "model": "Systran/faster-whisper-small",
+   "engine": "local-whisper"
+  },
+  {
+   "file": "bench-clips/en/en_us_7.wav",
+   "language": "en",
+   "hypothesis": "The aspect ratio of this format dividing by 12 to obtain the simplest whole number ratio is therefore said to be free to two.",
+   "wer": 0.1905,
+   "cer": 0.1667,
+   "latency_s": 7.14,
+   "failure": null,
+   "provider": "local-whisper",
+   "model": "Systran/faster-whisper-small",
+   "engine": "local-whisper"
+  }
+ ],
+ "summary": [
+  {
+   "engine": "local-whisper",
+   "language": "en",
+   "n": 8,
+   "mean_wer": 0.0729875,
+   "mean_cer": 0.07075,
+   "mean_latency_s": 6.5625,
+   "fails": 0
+  },
+  {
+   "engine": "local-whisper",
+   "language": "hi",
+   "n": 8,
+   "mean_wer": 0.600375,
+   "mean_cer": 0.215925,
+   "mean_latency_s": 23.8475,
+   "fails": 0
+  },
+  {
+   "engine": "local-whisper",
+   "language": "ALL",
+   "n": 16,
+   "mean_wer": 0.33668125,
+   "mean_cer": 0.1433375,
+   "mean_latency_s": 15.205,
+   "fails": 0
+  }
+ ]
+}

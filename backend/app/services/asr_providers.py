@@ -137,14 +137,121 @@ class MetaASRProvider(ASRProvider):
                 "live": meta_available(settings.META_API_KEY)}
 
 
+class LocalWhisperProvider(ASRProvider):
+    """CLARIS P2: on-device Whisper via faster-whisper (CPU-first).
+
+    Lazy: importing this module never imports faster-whisper and never
+    downloads weights. The model downloads on first transcribe only.
+    Languages map to Whisper codes; anything else (e.g. hinglish) falls
+    back to auto-detect. confidence/timestamps stay None — faster-whisper
+    log-probs are not calibrated confidences and are never presented as such.
+    Vocabulary keywords become an initial prompt (a bias, not a constraint).
+    """
+
+    name = "local-whisper"
+
+    def __init__(self, model_id: str):
+        if not (model_id or "").strip():
+            raise ValueError("LOCAL_ASR_MODEL not set — local Whisper unconfigured")
+        self.model_id = model_id.strip()
+
+    @staticmethod
+    def _import():
+        try:
+            import faster_whisper  # type: ignore
+        except ImportError as exc:
+            raise RuntimeError("faster-whisper not installed") from exc
+        return faster_whisper
+
+    def supported_languages(self) -> list[str]:
+        return ["auto", "en", "hi"]
+
+    def supported_formats(self) -> list[str]:
+        from .audio_service import ALLOWED_MIME
+
+        return sorted(ALLOWED_MIME)
+
+    async def health_check(self) -> dict:
+        try:
+            self._import()
+        except RuntimeError as exc:
+            return {"ok": True, "live": False, "detail": str(exc)}
+        return {"ok": True, "live": True,
+                "detail": f"model {self.model_id} (downloads on first transcribe, never at startup)"}
+
+    def provider_metadata(self) -> dict:
+        try:
+            self._import()
+            live: bool | str = True
+        except RuntimeError as exc:
+            live = str(exc)
+        return {"name": self.name, "model_version": self.model_id, "live": live}
+
+    async def transcribe(self, data: bytes, mime: str, language_hint: str = "auto",
+                         keywords: list[str] | None = None) -> dict:
+        import asyncio
+        import io
+
+        fw = self._import()
+        from .audio_service import normalize_to_wav16k
+
+        wav = normalize_to_wav16k(data, mime)
+        language = {"auto": None, "en": "en", "hi": "hi"}.get(language_hint, None)
+        prompt = " ".join(keywords[:20]) if keywords else None
+
+        def _run():
+            import array
+            import wave
+
+            import numpy as np
+
+            model = fw.WhisperModel(self.model_id, device=settings.LOCAL_ASR_DEVICE,
+                                    compute_type=settings.LOCAL_ASR_COMPUTE)
+            # Pass a float32 ndarray directly: avoids the engine's container
+            # decoder (PyAV version-sensitive) — input is always our own
+            # normalized mono s16le 16 kHz WAV at this point.
+            with wave.open(io.BytesIO(wav), "rb") as w:
+                frames = w.readframes(w.getnframes())
+            samples = array.array("h", frames)
+            audio = np.array([s / 32768.0 for s in samples], dtype=np.float32)
+            segments, info = model.transcribe(audio, language=language,
+                                              initial_prompt=prompt, vad_filter=False)
+            return " ".join(s.text.strip() for s in segments).strip(), info.language
+
+        text, detected = await asyncio.to_thread(_run)
+        return {
+            "text": text,
+            "language": detected or (None if language_hint == "auto" else language_hint) or "en",
+            "provider": "local-whisper",
+            "model_version": self.model_id,
+            "confidence": None,
+            "timestamps": None,
+            "fallback": False,
+        }
+
+
+_LOCAL: dict[str, LocalWhisperProvider] = {}
+
 _REGISTRY: dict[str, ASRProvider] = {"meta-asr": MetaASRProvider()}
 
 
+def local_provider() -> LocalWhisperProvider:
+    """Build (once) the configured local Whisper provider."""
+    model_id = (settings.LOCAL_ASR_MODEL or "").strip()
+    if not model_id:
+        raise ValueError("LOCAL_ASR_MODEL not set — local Whisper unconfigured")
+    if model_id not in _LOCAL:
+        _LOCAL[model_id] = LocalWhisperProvider(model_id)
+    return _LOCAL[model_id]
+
+
 def get_provider(name: str) -> ASRProvider:
+    if name == "local-whisper":
+        return local_provider()
     try:
         return _REGISTRY[name]
     except KeyError:
-        raise ValueError(f"Unknown ASR provider: {name}. Configured: {sorted(_REGISTRY)}")
+        raise ValueError(f"Unknown ASR provider: {name}. Configured: {sorted(_REGISTRY) + ['local-whisper']}")
 
 
 def primary_provider() -> ASRProvider:
@@ -152,12 +259,23 @@ def primary_provider() -> ASRProvider:
 
 
 def second_available() -> tuple[bool, str]:
-    """Whether a benchmarked secondary engine is configured (none yet)."""
+    """Whether a benchmarked secondary engine is configured.
+
+    local-whisper counts once P2 bench results exist (see
+    docs/claris-phase-2-asr.md); unconfigured/uninstalled states explain
+    themselves instead of silently falling back.
+    """
     if not settings.SECOND_ASR_ENABLED:
         return False, "SECOND_ASR_ENABLED is false"
     name = (settings.SECOND_ASR_PROVIDER or "").strip()
     if not name:
         return False, "SECOND_ASR_PROVIDER not set"
+    if name == "local-whisper":
+        try:
+            local_provider()._import()
+        except (ValueError, RuntimeError) as exc:
+            return False, str(exc)
+        return True, name
     if name not in _REGISTRY:
         return False, f"provider {name!r} not registered (none benchmarked yet)"
     return True, name

@@ -1,0 +1,225 @@
+{
+ "rows": [
+  {
+   "file": "bench-clips/hi/hi_in_0.wav",
+   "language": "hi",
+   "hypothesis": "कुछकुछ अणुओं में अस्थिर केंद्रक होता है जिसका मतलब यह है कि कि उनमें थोड़े या बिना किसी झटके से टूटने की प्रवृत्ति होती होती है।",
+   "wer": 0.1667,
+   "cer": 0.1034,
+   "latency_s": 6.2,
+   "failure": null,
+   "provider": "meta-asr",
+   "model": "muse-voice-transcribe-1.0",
+   "engine": "meta-asr"
+  },
+  {
+   "file": "bench-clips/hi/hi_in_1.wav",
+   "language": "hi",
+   "hypothesis": "टेलीविजनटेलीविजन रिपोर्टों में प्लांट से निकलने निकलने वाला सफेद धुआं दिखाया गया है.",
+   "wer": 0.1667,
+   "cer": 0.2353,
+   "latency_s": 4.0,
+   "failure": null,
+   "provider": "meta-asr",
+   "model": "muse-voice-transcribe-1.0",
+   "engine": "meta-asr"
+  },
+  {
+   "file": "bench-clips/hi/hi_in_2.wav",
+   "language": "hi",
+   "hypothesis": "इंटरनेट पर ये खोज शत्रुतापूर्ण पर्यावरण पाठ्यक्रम के लिए अक्सर आपको एक स्थानीय स्थानीय कंपनी का पता प्रदान करेगी",
+   "wer": 0.1111,
+   "cer": 0.0865,
+   "latency_s": 4.59,
+   "failure": null,
+   "provider": "meta-asr",
+   "model": "muse-voice-transcribe-1.0",
+   "engine": "meta-asr"
+  },
+  {
+   "file": "bench-clips/hi/hi_in_3.wav",
+   "language": "hi",
+   "hypothesis": "इसे केमिकल का pH कहा जाता है। आप लाल गोभी के जूस को इस्तेमाल करके एक संकेतक बना सकते हैं।",
+   "wer": 0.15,
+   "cer": 0.046,
+   "latency_s": 3.29,
+   "failure": null,
+   "provider": "meta-asr",
+   "model": "muse-voice-transcribe-1.0",
+   "engine": "meta-asr"
+  },
+  {
+   "file": "bench-clips/hi/hi_in_4.wav",
+   "language": "hi",
+   "hypothesis": "सबसे नजदीकी सिरे पर क्रस्ट की मोटाई करीब सत्तर किलोमीटर है, और सबसे दूर के सिरे पर यह सौ सौ किलोमीटर है.",
+   "wer": 0.2105,
+   "cer": 0.1327,
+   "latency_s": 4.65,
+   "failure": null,
+   "provider": "meta-asr",
+   "model": "muse-voice-transcribe-1.0",
+   "engine": "meta-asr"
+  },
+  {
+   "file": "bench-clips/hi/hi_in_5.wav",
+   "language": "hi",
+   "hypothesis": "केवल दो हफ्तों में, अमेरिकियों और फ्री फ्रेंच बलों ने दक्षिणी फ्रांस को मुक्त कर दिया था। और जर्मनी की ओर बढ़ रहे थे।",
+   "wer": 0.25,
+   "cer": 0.0593,
+   "latency_s": 4.42,
+   "failure": null,
+   "provider": "meta-asr",
+   "model": "muse-voice-transcribe-1.0",
+   "engine": "meta-asr"
+  },
+  {
+   "file": "bench-clips/hi/hi_in_6.wav",
+   "language": "hi",
+   "hypothesis": "MS बीमारी केंद्रीय तंत्रिका तंत्र पर असर करती है जिसमें जिसमें दिमाग, स्पाइनल कॉर्ड और ऑप्टिक नर्व शामिल हैं।",
+   "wer": 0.1111,
+   "cer": 0.11,
+   "latency_s": 4.48,
+   "failure": null,
+   "provider": "meta-asr",
+   "model": "muse-voice-transcribe-1.0",
+   "engine": "meta-asr"
+  },
+  {
+   "file": "bench-clips/hi/hi_in_7.wav",
+   "language": "hi",
+   "hypothesis": "हर कोई समाज से जुड़ा होता है और ट्रांसपोर्ट सिस्टम का उपयोग करता है, लगभग सभी लोग ट्रांसपोर्ट सिस्टम के बारे में शिकायत करते हैं।",
+   "wer": 0.04,
+   "cer": 0.0157,
+   "latency_s": 5.12,
+   "failure": null,
+   "provider": "meta-asr",
+   "model": "muse-voice-transcribe-1.0",
+   "engine": "meta-asr"
+  },
+  {
+   "file": "bench-clips/en/en_us_0.wav",
+   "language": "en",
+   "hypothesis": "However, due to the slow communication channels, styles in the west could lag behind by 25 to 30 years.",
+   "wer": 0.0588,
+   "cer": 0.0505,
+   "latency_s": 4.01,
+   "failure": null,
+   "provider": "meta-asr",
+   "model": "muse-voice-transcribe-1.0",
+   "engine": "meta-asr"
+  },
+  {
+   "file": "bench-clips/en/en_us_1.wav",
+   "language": "en",
+   "hypothesis": "All nouns alongside the world say for for you always begin with a capital letter, even in the middle of a a sentence.",
+   "wer": 0.1905,
+   "cer": 0.1111,
+   "latency_s": 3.86,
+   "failure": null,
+   "provider": "meta-asr",
+   "model": "muse-voice-transcribe-1.0",
+   "engine": "meta-asr"
+  },
+  {
+   "file": "bench-clips/en/en_us_2.wav",
+   "language": "en",
+   "hypothesis": "The cabbage juice changed its color depending on how acidic, acidic basic alkaline the chemical is.",
+   "wer": 0.2,
+   "cer": 0.1461,
+   "latency_s": 3.78,
+   "failure": null,
+   "provider": "meta-asr",
+   "model": "muse-voice-transcribe-1.0",
+   "engine": "meta-asr"
+  },
+  {
+   "file": "bench-clips/en/en_us_3.wav",
+   "language": "en",
+   "hypothesis": "Many people don't think about them as dinosaurs because they have feathers and can fly.",
+   "wer": 0.0,
+   "cer": 0.0233,
+   "latency_s": 2.49,
+   "failure": null,
+   "provider": "meta-asr",
+   "model": "muse-voice-transcribe-1.0",
+   "engine": "meta-asr"
+  },
+  {
+   "file": "bench-clips/en/en_us_4.wav",
+   "language": "en",
+   "hypothesis": "The hospital has followed protocol for infection infection control, including separating the patient from others to prevent possible infection of of others.",
+   "wer": 0.1,
+   "cer": 0.1135,
+   "latency_s": 4.83,
+   "failure": null,
+   "provider": "meta-asr",
+   "model": "muse-voice-transcribe-1.0",
+   "engine": "meta-asr"
+  },
+  {
+   "file": "bench-clips/en/en_us_5.wav",
+   "language": "en",
+   "hypothesis": "The northern Marianas Emergency Management Office said that there were no damages reported in the nation.",
+   "wer": 0.0,
+   "cer": 0.0577,
+   "latency_s": 4.11,
+   "failure": null,
+   "provider": "meta-asr",
+   "model": "muse-voice-transcribe-1.0",
+   "engine": "meta-asr"
+  },
+  {
+   "file": "bench-clips/en/en_us_6.wav",
+   "language": "en",
+   "hypothesis": "20th century research has shown that there are two pools of genetic variation hidden and expressed.",
+   "wer": 0.0625,
+   "cer": 0.0777,
+   "latency_s": 3.85,
+   "failure": null,
+   "provider": "meta-asr",
+   "model": "muse-voice-transcribe-1.0",
+   "engine": "meta-asr"
+  },
+  {
+   "file": "bench-clips/en/en_us_7.wav",
+   "language": "en",
+   "hypothesis": "The aspect ratio of this format dividing by 12 to obtain the simplest whole number ratio is therefore said to be three to two.",
+   "wer": 0.1905,
+   "cer": 0.175,
+   "latency_s": 4.28,
+   "failure": null,
+   "provider": "meta-asr",
+   "model": "muse-voice-transcribe-1.0",
+   "engine": "meta-asr"
+  }
+ ],
+ "summary": [
+  {
+   "engine": "meta-asr",
+   "language": "en",
+   "n": 8,
+   "mean_wer": 0.1002875,
+   "mean_cer": 0.0943625,
+   "mean_latency_s": 3.90125,
+   "fails": 0
+  },
+  {
+   "engine": "meta-asr",
+   "language": "hi",
+   "n": 8,
+   "mean_wer": 0.1507625,
+   "mean_cer": 0.0986125,
+   "mean_latency_s": 4.59375,
+   "fails": 0
+  },
+  {
+   "engine": "meta-asr",
+   "language": "ALL",
+   "n": 16,
+   "mean_wer": 0.125525,
+   "mean_cer": 0.0964875,
+   "mean_latency_s": 4.2475000000000005,
+   "fails": 0
+  }
+ ]
+}

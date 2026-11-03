@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 *.db
 *.db-journal
+/models/
 node_modules/
 .next/
 out/
