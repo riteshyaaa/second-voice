@@ -92,6 +92,7 @@ export const api = {
     req("/api/v1/languages/translate", { method: "POST", body: JSON.stringify({ text, target }) }),
   pipelineDemo: (transcript: string) =>
     req("/api/v1/evaluation/pipeline-demo", { method: "POST", body: JSON.stringify({ transcript }) }),
+  review: () => req("/api/v1/personalization/review"),
   cards: (category = "", favorites = false) =>
     req(`/api/v1/cards${category ? `?category=${encodeURIComponent(category)}` : ""}${favorites ? `${category ? "&" : "?"}favorites=true` : ""}`),
   addCard: (payload: { label: string; phrase: string; language?: string; emoji?: string; category?: string; label_native?: string }) =>

@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import DiffView from "@/components/DiffView";
+import CandidatesPanel from "@/components/CandidatesPanel";
 import { api, speakBrowser, stopBrowserSpeech } from "@/lib/api";
+import type { Candidate } from "@/lib/candidates";
 import { resolveAudioUrl, tapToSpeak, type Card } from "@/lib/cards";
 import { Recorder, toWav16kBlob } from "@/lib/audio";
 import { CLIP_DATA, type ClipKey } from "@/lib/design-system";
@@ -14,6 +16,12 @@ type Suggestion = {
   changed_words: { from: string; to: string; reason: string }[]; alternatives: string[];
   needs_clarification: boolean; clarification_question: string; abstained: boolean;
   meaning_risk: string; provider: string; model_version: string;
+  candidates?: Candidate[];
+};
+
+type AsrInfo = {
+  provider: string; model_version: string; fallback: boolean;
+  uncertainty?: { kind: string; severity: string; message: string }[];
 };
 
 type ClarifyOption = { id: string; label: string; source: string };
@@ -44,6 +52,7 @@ export default function Workspace() {
   const [favs, setFavs] = useState<Card[]>([]);
   const [displayName, setDisplayName] = useState("");
   const [vocabCount, setVocabCount] = useState<number | null>(null);
+  const [asr, setAsr] = useState<AsrInfo | null>(null);
   const [questions, setQuestions] = useState<ClarifyQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
   const [blockers, setBlockers] = useState<string[]>([]);
@@ -141,8 +150,9 @@ export default function Workspace() {
       const { audioId, lang: l } = JSON.parse(pending);
       (async () => {
         try {
-          const t = (await api.transcribe(audioId, l === "en" ? "auto" : l)) as { transcript_id: number; text_original: string; language: string };
+          const t = (await api.transcribe(audioId, l === "en" ? "auto" : l)) as { transcript_id: number; text_original: string; language: string; provider: string; model_version: string; fallback: boolean; uncertainty: AsrInfo["uncertainty"] };
           setTranscript(t.text_original);
+          setAsr({ provider: t.provider, model_version: t.model_version, fallback: t.fallback, uncertainty: t.uncertainty });
           await runPipeline(t.transcript_id, t.language);
         } catch (e) {
           setStatus(e instanceof Error ? e.message : "Transcription failed. Type your sentence below instead.");
@@ -408,6 +418,12 @@ export default function Workspace() {
               <div className="flex items-center gap-space-xs"><span className="material-symbols-outlined text-on-surface-variant text-[20px]">hearing</span><h2 className="font-label-lg text-label-lg font-bold text-on-surface">What We Heard</h2></div>
               <p className="font-body-sm text-body-sm text-on-surface-variant">Original un-altered capture. Never overwritten.</p>
               <div className="bg-surface-container-lowest p-space-md rounded-lg min-h-[140px] font-body-xl text-body-xl text-on-surface">{transcript || "No audio recorded yet. Tap microphone or load sample clip above."}</div>
+              {asr && (
+                <p className="font-body-sm text-body-sm text-on-surface-variant" aria-label="Recognition evidence">
+                  Heard by {asr.provider}{asr.fallback ? " (typed fallback — no speech recognition ran)" : ""}. No word-level confidence is claimed.
+                  {(asr.uncertainty || []).filter((u) => u.severity !== "info").slice(0, 2).map((u) => ` ${u.message}`).join("")}
+                </p>
+              )}
               {sug && <div className="mt-1"><DiffView original={sug.original_text} proposed={sug.proposed_text} /></div>}
             </article>
             <article className="bg-surface-container-high rounded-xl p-space-lg flex flex-col gap-space-sm">
@@ -424,6 +440,13 @@ export default function Workspace() {
               )}
             </article>
           </section>
+
+          {sug && sug.candidates && (
+            <CandidatesPanel
+              candidates={sug.candidates}
+              onUse={(t) => { setEdit(t); setTimeout(() => editRef.current?.focus(), 0); }}
+            />
+          )}
 
           {sug && sug.needs_clarification && (
             <section aria-labelledby="clarify-heading" className="bg-surface-container rounded-xl p-space-lg flex flex-col gap-space-md">
