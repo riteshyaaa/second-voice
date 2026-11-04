@@ -8,7 +8,7 @@ type V = { id: number; term: string; language: string; category: string; times_u
 const SEED = [
   { sound: "Arav", target: "Aarav", cat: "names", label: "Family & Names", icon: "badge", count: 14, note: "Last used: Today" },
   { sound: "Dr. Ten", target: "Dr. Sen (Neurology)", cat: "medical", label: "Medical & Care", icon: "medical_services", count: 29, note: "Last used: 2d ago" },
-  { sound: "Kay-saal", target: "काय चाललंय? (What's up?)", cat: "dialect", label: "Marathi Slang / Dialect", icon: "translate", count: 41, note: "Last used: 1h ago" },
+  { sound: "Kay haal", target: "क्या हाल है? (What's up?)", cat: "dialect", label: "Hindi Slang / Dialect", icon: "translate", count: 41, note: "Last used: 1h ago" },
   { sound: "Bha-yaa", target: "भैया (Brother)", cat: "dialect", label: "Hindi Colleague / Endearment", icon: "translate", count: 18, note: "Last used: Yesterday" },
   { sound: "Verandaah", target: "Front Garden Verandah", cat: "places", label: "Places & Home", icon: "cottage", count: 22, note: "Last used: 3h ago" },
   { sound: "Chai bin", target: "Please bring warm ginger tea without sugar", cat: "phrases", label: "Personal Phrases", icon: "format_quote", count: 56, note: "Last used: 5h ago" },
@@ -45,7 +45,7 @@ export default function Vocabulary() {
   function showToast(m: string) { setToast(m); setTimeout(() => setToast(""), 2800); }
 
   function speak(text: string) {
-    speakBrowser(text);
+    speakBrowser(text, /[\u0900-\u097F]/.test(text) ? "hi" : "en");
     setStaging(text);
   }
 
@@ -100,7 +100,7 @@ export default function Vocabulary() {
           </div>
         </div>
         <div className="flex items-center gap-space-xs overflow-x-auto">
-          {[["all", "All Entries (18)"], ["names", "Family & Names"], ["places", "Places & Home"], ["medical", "Medical & Care"], ["dialect", "Hindi & Marathi Dialect"], ["phrases", "Personal Phrases"]].map(([v, l]) => (
+          {[["all", "All Entries (18)"], ["names", "Family & Names"], ["places", "Places & Home"], ["medical", "Medical & Care"], ["dialect", "Hindi Dialect"], ["phrases", "Personal Phrases"]].map(([v, l]) => (
             <button key={v} onClick={() => setCat(v)} className={`px-space-md py-space-xs rounded-full font-label-sm text-label-sm whitespace-nowrap ${cat === v ? "bg-primary text-on-primary" : "bg-surface-container text-on-surface-variant hover:text-on-surface"}`}>{l}</button>
           ))}
         </div>
@@ -153,7 +153,7 @@ export default function Vocabulary() {
           <form onSubmit={async (e) => { e.preventDefault(); if (!sound.trim() || !target.trim()) return; try { await api.addVocab(target.trim(), "en", mcat); await refresh(); } catch {} setModal(false); setSound(""); setTarget(""); showToast(`Added phonetic bridge: "${target}"`); }} className="bg-surface-container-high w-full max-w-xl rounded-2xl p-space-xl flex flex-col gap-space-lg">
             <div className="flex items-center justify-between"><div><span className="font-label-sm text-label-sm uppercase tracking-widest text-primary font-semibold">Phonetic Ingestion</span><h4 className="font-headline-lg text-headline-lg">Add Custom Phoneme Mapping</h4></div>
               <button type="button" onClick={() => setModal(false)} className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center" aria-label="Close"><span className="material-symbols-outlined text-[20px]">close</span></button></div>
-            <label className="block">Category<select value={mcat} onChange={(e) => setMcat(e.target.value)} className="w-full h-12 bg-surface-container-lowest px-space-md rounded-xl mt-1"><option value="names">Family &amp; Names</option><option value="places">Places &amp; Home</option><option value="medical">Medical &amp; Care</option><option value="dialect">Hindi &amp; Marathi Dialect</option><option value="phrases">Personal Phrases</option></select></label>
+            <label className="block">Category<select value={mcat} onChange={(e) => setMcat(e.target.value)} className="w-full h-12 bg-surface-container-lowest px-space-md rounded-xl mt-1"><option value="names">Family &amp; Names</option><option value="places">Places &amp; Home</option><option value="medical">Medical &amp; Care</option><option value="dialect">Hindi Dialect</option><option value="phrases">Personal Phrases</option></select></label>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-space-md">
               <label className="block">Acoustic Sound<input value={sound} onChange={(e) => setSound(e.target.value)} className="w-full h-12 bg-surface-container-lowest px-space-md rounded-xl mt-1" placeholder="e.g. Dadi, Paani" required /></label>
               <label className="block">Target Expression<input value={target} onChange={(e) => setTarget(e.target.value)} className="w-full h-12 bg-surface-container-lowest px-space-md rounded-xl mt-1" placeholder="e.g. Shruti, दादी" required /></label>

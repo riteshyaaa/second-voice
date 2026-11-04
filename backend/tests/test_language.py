@@ -1,4 +1,4 @@
-"""Language detect: en/hi/hinglish/mr + preservation (no auto-translate)."""
+"""Language detect: en/hi/hinglish + preservation (no auto-translate)."""
 from app.services import language_service as ls
 
 
@@ -15,8 +15,9 @@ def test_english():
     assert ls.detect_language("I need some water please")["language"] == "en"
 
 
-def test_marathi():
-    assert ls.detect_language("mala pani pahije")["language"] == "mr"
+def test_unsupported_latin_defaults_english():
+    # No Marathi support: unrecognized Latin words are not assigned anywhere.
+    assert ls.detect_language("mala pani pahije")["language"] == "en"
 
 
 def test_explicit_translation_keeps_original():

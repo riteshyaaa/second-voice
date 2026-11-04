@@ -26,7 +26,7 @@ def _auth(email="tts9@test.app"):
 def test_voices_follow_active_provider(monkeypatch):
     monkeypatch.setattr(settings, "TTS_PROVIDER", "google")
     assert tts_service.voices_for("hi")[0].startswith("hi-IN-")
-    assert "mr-IN-Wavenet-A" in tts_service.voices_for("mr")
+    assert "mr" not in tts_service.GOOGLE_VOICES and "mr" not in tts_service.VOICES
     monkeypatch.setattr(settings, "TTS_PROVIDER", "webspeech-fallback")
     assert tts_service.voices_for("hi")[0].startswith("hi-IN-")
     assert "SwaraNeural" in tts_service.voices_for("hi")[0]
@@ -137,6 +137,8 @@ def test_preview_fixed_text_only(monkeypatch):
     assert r2.json()["detail"]["code"] == "VOICE_UNSUPPORTED"
 
     # Google voice list is served without a key (list is static).
+    # Marathi removed: unknown languages fall back to the English table.
     monkeypatch.setattr(settings, "TTS_PROVIDER", "google")
     v = client.get("/api/v1/speech/voices?language=mr", headers=h).json()
-    assert v["voices"] and all(x.startswith("mr-IN-") for x in v["voices"])
+    assert v["language"] == "mr"
+    assert all(x.startswith("en-IN-") or x.startswith("en-US-") for x in v["voices"])

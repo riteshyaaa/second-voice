@@ -20,7 +20,7 @@ export default function Onboarding() {
     for (const term of names.split(",").map((s) => s.trim()).filter(Boolean)) {
       await api.addVocab(term, lang, "name");
     }
-    router.push("/dashboard");
+    router.push("/communicate");
   }
 
   return (
@@ -33,7 +33,7 @@ export default function Onboarding() {
           {step === 1 && (
             <div><h1 className="font-headline-md font-bold">Select Primary Speech Environment</h1>
               <div className="mt-3 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Preferred language">
-                {[["en", "English"], ["hi", "हिन्दी (Hindi)"], ["hinglish", "Hinglish"], ["mr", "मराठी (Marathi)"]].map(([v, l]) => (
+                {[["en", "English"], ["hi", "हिन्दी (Hindi)"], ["hinglish", "Hinglish"]].map(([v, l]) => (
                   <button key={v} role="radio" aria-checked={lang === v} onClick={() => setLang(v)} className={`min-h-[56px] rounded-xl border-2 ${lang === v ? "border-primary bg-primary/10" : "border-surface-container-high"}`}>{l}</button>
                 ))}
               </div>

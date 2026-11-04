@@ -16,7 +16,7 @@ export default function Login() {
     try {
       const r = (await api.login(email, password)) as { access_token: string };
       setToken(r.access_token);
-      router.push("/dashboard");
+      router.push("/communicate");
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "Login failed");
     }

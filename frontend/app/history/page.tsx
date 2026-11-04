@@ -47,7 +47,7 @@ export default function History() {
           )}
         </div>
       </div>
-      <p><Link className="underline text-lg" href="/dashboard">Back to dashboard</Link></p>
+      <p><Link className="underline text-lg" href="/communicate">Back to workshop</Link></p>
     </div>
     </RequireAuth>
   );

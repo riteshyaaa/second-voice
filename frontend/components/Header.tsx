@@ -10,7 +10,7 @@ const PUBLIC_NAV = [
 ];
 
 const PRIVATE_NAV = [
-  { label: "Workspace", href: "/communicate/1", path: "workspace" },
+  { label: "Workshop", href: "/communicate", path: "workspace" },
   { label: "Settings", href: "/settings", path: "settings" },
 ];
 
@@ -24,7 +24,7 @@ export default function Header() {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-surface/85 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]">
       <div className="h-20 w-full px-margin flex items-center justify-between gap-space-lg">
-        <Link href={authed ? "/dashboard" : "/"} className="flex items-center gap-space-md">
+        <Link href={authed ? "/communicate" : "/"} className="flex items-center gap-space-md">
           <span className="w-8 h-8 rounded-lg bg-primary text-on-primary flex items-center justify-center font-bold">S</span>
           <span className="font-headline-sm text-headline-sm font-semibold tracking-tight text-on-surface">Second Voice</span>
         </Link>

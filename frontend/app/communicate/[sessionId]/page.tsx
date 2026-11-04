@@ -37,7 +37,7 @@ export default function Workspace() {
   const [typed, setTyped] = useState("");
   const [lang, setLang] = useState("en");
   const [clip, setClip] = useState<ClipKey>("A");
-  const [clipLang, setClipLang] = useState<"en" | "hi" | "mr">("en");
+  const [clipLang, setClipLang] = useState<"en" | "hi">("en");
   const [sug, setSug] = useState<Suggestion | null>(null);
   const [edit, setEdit] = useState("");
   const [status, setStatus] = useState("Listening");
@@ -117,6 +117,8 @@ export default function Workspace() {
   }
 
   useEffect(() => {
+    // Warm up Chrome's async voice list so a matching voice exists by speak time.
+    try { if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.getVoices(); } catch { /* voice pick degrades honestly */ }
     (async () => {
       try {
         const me = (await api.me()) as { display_name?: string; email?: string };
@@ -178,7 +180,7 @@ export default function Workspace() {
     showToast(`Loaded demo sample ${k}`);
   }
 
-  const clipClear = clipLang === "hi" ? CLIP_DATA[clip].clearHi : clipLang === "mr" ? CLIP_DATA[clip].clearMr : CLIP_DATA[clip].clearEn;
+  const clipClear = clipLang === "hi" ? CLIP_DATA[clip].clearHi : CLIP_DATA[clip].clearEn;
 
   async function record() {
     try {
@@ -273,8 +275,11 @@ export default function Workspace() {
       const r = (await api.synthesize(approvedId, voice, rate)) as { audio_url: string; fallback: boolean };
       const url = resolveAudioUrl(r.audio_url);
       setAudioUrl(url);
-      if (r.fallback) speakBrowser(edit || sug?.proposed_text || transcript);
-      else requestAnimationFrame(() => audioEl.current?.play().catch(() => {}));
+      if (r.fallback) {
+        const s = speakBrowser(edit || sug?.proposed_text || transcript, lang);
+        if (s.ok && s.voiceMatched === false)
+          showToast(`No ${s.lang} voice installed on this device — install one, or set up Google TTS for real Hindi voices.`);
+      } else requestAnimationFrame(() => audioEl.current?.play().catch(() => {}));
       setStatus("Speaking confirmed text.");
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Could not synthesize.");
@@ -334,8 +339,8 @@ export default function Workspace() {
           ))}
           <button onClick={playSample} className="min-h-[44px] px-space-md py-space-xs rounded-full text-label-sm font-label-sm bg-surface-container">Play sample aloud</button>
           <span className="font-label-sm text-label-sm text-on-surface-variant hidden lg:inline">Sample text:</span>
-          {(["en", "hi", "mr"] as const).map((l) => (
-            <button key={l} onClick={() => setClipLang(l)} aria-pressed={clipLang === l} className={`min-h-[44px] px-3 rounded-full text-label-sm font-label-sm ${clipLang === l ? "bg-primary text-on-primary" : "bg-surface-container"}`}>{l === "en" ? "EN" : l === "hi" ? "हिं" : "मर"}</button>
+          {(["en", "hi"] as const).map((l) => (
+            <button key={l} onClick={() => setClipLang(l)} aria-pressed={clipLang === l} className={`min-h-[44px] px-3 rounded-full text-label-sm font-label-sm ${clipLang === l ? "bg-primary text-on-primary" : "bg-surface-container"}`}>{l === "en" ? "EN" : "हिं"}</button>
           ))}
         </div>
       </aside>
@@ -345,7 +350,6 @@ export default function Workspace() {
           <div className="bg-surface-container rounded-xl p-space-md flex flex-col gap-space-xs">
             <span className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant px-space-sm mb-space-xs font-semibold">Go to</span>
             {[
-              ["/dashboard", "Dashboard"],
               [`/communicate/${sessionId}`, "Workspace"],
               ["/board", "Communication board"],
               ["/vocabulary", "Vocabulary"],
@@ -394,8 +398,8 @@ export default function Workspace() {
                 <div className="flex items-center justify-between font-label-sm text-label-sm text-on-surface-variant px-space-xs"><span>{recording ? "Recording…" : "Sound level (display only)"}</span></div>
                 <div className="flex items-center gap-2 px-space-xs" role="group" aria-label="Language you will speak">
                   <span className="font-label-sm text-label-sm text-on-surface-variant">I speak:</span>
-                  {(["en", "hi", "mr"] as const).map((l) => (
-                    <button key={l} type="button" onClick={() => setLang(l)} aria-pressed={lang === l} className={`min-h-[48px] px-4 rounded-full font-semibold text-label-sm font-label-sm ${lang === l ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant"}`}>{l === "en" ? "English" : l === "hi" ? "हिन्दी" : "मराठी"}</button>
+                  {(["en", "hi"] as const).map((l) => (
+                    <button key={l} type="button" onClick={() => setLang(l)} aria-pressed={lang === l} className={`min-h-[48px] px-4 rounded-full font-semibold text-label-sm font-label-sm ${lang === l ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant"}`}>{l === "en" ? "English" : "हिन्दी"}</button>
                   ))}
                 </div>
                 <svg className="w-full h-24 text-primary bg-surface-container rounded-lg p-2" fill="none" viewBox="0 0 600 80" preserveAspectRatio="none" aria-hidden>
@@ -429,7 +433,7 @@ export default function Workspace() {
             <article className="bg-surface-container-high rounded-xl p-space-lg flex flex-col gap-space-sm">
               <div className="flex items-center justify-between"><h2 className="font-label-lg text-label-lg font-bold text-primary">Suggested clearer message</h2>{sug && <span className="font-label-sm text-label-sm bg-primary/10 text-primary px-2.5 py-1 rounded-md font-bold">{sug.abstained ? "Unsure — check me" : `${sug.provider} · ${sug.meaning_risk} risk`}</span>}</div>
               <div className="flex items-center gap-space-xs bg-surface-container px-3 py-1 rounded-lg self-start" aria-label="Detected language">
-                <span className="font-label-sm text-label-sm text-on-surface-variant">Heard as: <strong className="text-on-surface">{lang === "hi" ? "हिन्दी" : lang === "mr" ? "मराठी" : lang === "hinglish" ? "Hinglish" : "English"}</strong></span>
+                <span className="font-label-sm text-label-sm text-on-surface-variant">Heard as: <strong className="text-on-surface">{lang === "hi" ? "हिन्दी" : lang === "hinglish" ? "Hinglish" : "English"}</strong></span>
               </div>
               <div className="bg-surface-container-lowest p-space-md rounded-lg min-h-[140px] font-body-xl text-body-xl text-on-surface">{sug ? (edit || sug.proposed_text) : "Record, type, or load a sample above to get a suggestion here."}</div>
               {sug && <p className="font-body-sm text-body-sm text-on-surface-variant"><strong className="text-on-surface">Why this change:</strong> {sug.explanation}</p>}

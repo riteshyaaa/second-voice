@@ -4,7 +4,7 @@ Date: 2026-11-04. Status: complete. Marker: `CLARIS-P9-DOCKER-PASS`.
 
 ## Goal
 
-More real voices for Hindi, English, and Marathi — behind the same
+More real voices for Hindi and English — behind the same
 server-side confirmation gate, with the same honest labelling. XTTS-v2
 stays excluded (CPML non-commercial).
 

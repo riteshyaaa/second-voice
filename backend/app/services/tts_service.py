@@ -18,7 +18,6 @@ VOICES = {
     "en": ["en-US-AriaNeural", "en-IN-NeerjaNeural"],
     "hi": ["hi-IN-SwaraNeural", "hi-IN-MadhurNeural"],
     "hinglish": ["hi-IN-SwaraNeural", "en-IN-NeerjaNeural"],
-    "mr": ["mr-IN-AarohiNeural"],
 }
 
 # Google Cloud TTS (API-key REST). Names are curated Standard/Wavenet/
@@ -28,17 +27,15 @@ GOOGLE_VOICES = {
     "en": ["en-IN-Wavenet-A", "en-IN-Wavenet-B", "en-IN-Standard-A", "en-US-Neural2-A"],
     "hi": ["hi-IN-Wavenet-A", "hi-IN-Wavenet-D", "hi-IN-Standard-A", "hi-IN-Standard-B"],
     "hinglish": ["hi-IN-Wavenet-A", "en-IN-Wavenet-A"],
-    "mr": ["mr-IN-Wavenet-A", "mr-IN-Wavenet-B", "mr-IN-Standard-A"],
 }
 
-GOOGLE_LANG = {"en": "en-IN", "hi": "hi-IN", "hinglish": "hi-IN", "mr": "mr-IN"}
+GOOGLE_LANG = {"en": "en-IN", "hi": "hi-IN", "hinglish": "hi-IN"}
 
 # Fixed preview lines (no user text ever enters preview).
 PREVIEW_LINES = {
     "en": "Hello. This is how I will sound.",
     "hi": "नमस्ते। मैं ऐसे सुनाई दूंगा।",
     "hinglish": "Namaste. This is how I will sound.",
-    "mr": "नमस्कार. मी असा ऐकू येईन.",
 }
 
 

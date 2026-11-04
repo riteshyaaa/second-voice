@@ -17,7 +17,7 @@ review evidence-first AI suggestions → confirm → speak only confirmed text.
   acoustic evidence ≠ contextual guess ≠ personal vocabulary ≠ user authority.
 - **Routes only complex ambiguity to Muse Wonder** (`muse-wonder-1.0`).
 - **Optional visual cards** via Muse Image (`muse-image-1.0`).
-- **Multilingual core**: English, Hindi, Hinglish, Marathi (+ extensible).
+- **Multilingual core**: English, Hindi, Hinglish (+ extensible).
   Language is preserved by default; translation is explicit and confirmed.
 - **Learns transparently**: user-approved vocabulary, corrections, language
   preferences. Retrieval-based personalization, no silent fine-tuning.

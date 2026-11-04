@@ -1,20 +1,16 @@
-"""Phase 4: Marathi/Hindi disambiguation, segment spans, script checks,
-translation guards, per-language vocabulary review. All offline."""
+"""Phase 4 (Hindi/English only): Devanagari defaults, segment spans,
+script checks, translation guards, per-language vocabulary review.
+All offline. Marathi support removed."""
 import pytest
 
 from app.core.config import settings
 from app.services import language_service as ls
 
 
-def test_marathi_devanagari_with_lla():
+def test_devanagari_without_marathi_defaults_hindi():
     r = ls.detect_language("मला बाळासाठी पाणी हवं आहे")
-    assert r["language"] == "mr", r
-    assert "mr" in r["languages_present"]
-
-
-def test_marathi_devanagari_lexicon():
-    r = ls.detect_language("मला पाणी पाहिजे")
-    assert r["language"] == "mr", r
+    assert r["language"] == "hi", r
+    assert "devanagari-script default" in r["confidence_note"], r
 
 
 def test_hindi_devanagari_stays_hindi():
@@ -23,17 +19,17 @@ def test_hindi_devanagari_stays_hindi():
     assert r["ambiguous"] is False
 
 
-def test_close_call_flagged_ambiguous():
+def test_no_close_call_flag_without_marathi():
     r = ls.detect_language("mala nahi hai")
-    assert r["ambiguous"] is True, r
+    assert r["language"] == "hi", r
+    assert r["ambiguous"] is False, r
 
 
-def test_segment_spans_tag_marathi():
+def test_unrecognized_latin_stays_english():
     r = ls.detect_language("mala pani pahije please")
-    runs = [(s["lang"], s["tokens"]) for s in r["spans"]]
-    assert runs[0][0] == "mr" and runs[-1] == ("en", ["please"]), runs
-    assert r["code_switch"] is True
-    assert set(r["languages_present"]) >= {"mr", "en"}
+    assert r["language"] == "en", r
+    assert r["code_switch"] is False
+    assert r["languages_present"] == ["en"]
 
 
 def test_hindi_english_mix_spans():
@@ -78,7 +74,7 @@ def test_translate_endpoint_guards_phrasebook(monkeypatch):
                       json={"text": "मुझे मदद चाहिए", "target": "en"}, headers=h).json()
     assert out["translated"] == "I need help." and out["guard_warnings"] == [], out
     d = client.post("/api/v1/languages/detect?text=mala pani pahije", headers=h).json()
-    assert d["language"] == "mr" and "mr" in d["languages_present"], d
+    assert d["language"] == "en", d
 
 
 def test_vocabulary_language_filter():
@@ -95,8 +91,8 @@ def test_vocabulary_language_filter():
     r = client.post("/api/v1/auth/register", json={"email": "lang4b@test.app", "password": "password123"})
     h = {"Authorization": f"Bearer {r.json()['access_token']}"}
     client.post("/api/v1/vocabulary", json={"term": "Aarav", "language": "en", "category": "name"}, headers=h)
-    client.post("/api/v1/vocabulary", json={"term": "पाणी", "language": "mr", "category": "word"}, headers=h)
+    client.post("/api/v1/vocabulary", json={"term": "पानी", "language": "hi", "category": "word"}, headers=h)
     all_terms = client.get("/api/v1/vocabulary", headers=h).json()
     assert len(all_terms) == 2
-    mr_only = client.get("/api/v1/vocabulary", params={"language": "mr"}, headers=h).json()
-    assert [e["term"] for e in mr_only] == ["पाणी"]
+    hi_only = client.get("/api/v1/vocabulary", params={"language": "hi"}, headers=h).json()
+    assert [e["term"] for e in hi_only] == ["पानी"]

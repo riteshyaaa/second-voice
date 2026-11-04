@@ -17,7 +17,7 @@ export default function Footer() {
             <Link data-path="overview" className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface" href="/">Overview</Link>
             <Link data-path="interactive-demo" className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface" href="/#interactive-demo">Interactive Demo</Link>
             <Link data-path="how-it-works" className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface" href="/#how-it-works">How It Works</Link>
-            <Link data-path="workspace" className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface" href="/communicate/1">Workspace</Link>
+            <Link data-path="workspace" className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface" href="/communicate">Workshop</Link>
           </div>
           <div className="flex flex-col gap-space-sm">
             <span className="font-label-md text-label-md text-on-surface font-semibold uppercase tracking-wider">Accessibility</span>

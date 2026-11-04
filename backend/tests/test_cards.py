@@ -39,9 +39,9 @@ def test_seeds_once_with_categories():
 def test_crud_favorite_and_isolation():
     h = _user("cards2@test.app")
     client.get("/api/v1/cards", headers=h)
-    c = client.post("/api/v1/cards", json={"label": "Pाणी हवं", "language": "mr", "emoji": "💧",
-                                           "category": "needs", "phrase": "मला पाणी हवं आहे"}, headers=h).json()
-    assert c["language"] == "mr" and c["favorite"] is False
+    c = client.post("/api/v1/cards", json={"label": "पानी चाहिए", "language": "hi", "emoji": "💧",
+                                           "category": "needs", "phrase": "मुझे पानी चाहिए"}, headers=h).json()
+    assert c["language"] == "hi" and c["favorite"] is False
     assert client.post("/api/v1/cards", json={"label": "x", "category": "nope", "phrase": "x"},
                        headers=h).status_code == 422
     e = client.patch(f"/api/v1/cards/{c['id']}", json={"favorite": True}, headers=h).json()

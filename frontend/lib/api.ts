@@ -120,14 +120,60 @@ export const api = {
   deleteData: () => req("/api/v1/account/data", { method: "DELETE" }),
 };
 
-export function speakBrowser(text: string, lang = "en-US", rate = 1.0) {
-  if (typeof window === "undefined" || !("speechSynthesis" in window)) return false;
+export function speechLang(lang: string): string {
+  return lang === "hi" ? "hi-IN" : lang === "hinglish" ? "hi-IN" : "en-IN";
+}
+
+export type SpeakResult = { ok: boolean; voiceMatched: boolean | null; lang: string };
+
+export type BrowserVoiceLike = { name: string; lang: string };
+
+function voiceScore(v: BrowserVoiceLike, tag: string): number {
+  const name = (v.name || "").toLowerCase();
+  let s = 0;
+  // Exact locale first: keeps the Indian-English accent instead of US/UK.
+  if ((v.lang || "").toLowerCase() === tag.toLowerCase()) s += 4;
+  // Network / neural voices sound human; legacy SAPI + eSpeak sound robotic.
+  if (name.includes("google")) s += 5;
+  if (name.includes("natural")) s += 5;
+  if (name.includes("neural") || name.includes("online") || name.includes("samantha")) s += 3;
+  if (name.includes("espeak") || name.includes("robot")) s -= 10;
+  if (name.includes("desktop")) s -= 5;
+  return s;
+}
+
+/** Best voice for a BCP-47 tag. Ties keep list order, so single-voice
+ *  devices behave exactly as before. Pure function — unit tested. */
+export function pickBrowserVoice(voices: BrowserVoiceLike[], tag: string): BrowserVoiceLike | null {
+  const prefix = tag.slice(0, 2).toLowerCase();
+  const pool = voices.filter((v) => (v.lang || "").toLowerCase().startsWith(prefix));
+  if (pool.length === 0) return null;
+  let best = pool[0];
+  let bestScore = -Infinity;
+  for (const v of pool) {
+    const s = voiceScore(v, tag);
+    if (s > bestScore) { best = v; bestScore = s; }
+  }
+  return best;
+}
+
+export function speakBrowser(text: string, lang = "en", rate = 1.0): SpeakResult {
+  const tag = speechLang(lang);
+  if (typeof window === "undefined" || !("speechSynthesis" in window))
+    return { ok: false, voiceMatched: null, lang: tag };
   window.speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
-  u.lang = lang;
+  u.lang = tag;
   u.rate = rate;
+  // Explicit voice beats lang-tag guessing: Chrome silently drops Devanagari
+  // text on many default English voices, which is why Hindi went quiet.
+  const vs = window.speechSynthesis.getVoices();
+  const match = pickBrowserVoice(vs, tag);
+  if (match) u.voice = match as SpeechSynthesisVoice;
   window.speechSynthesis.speak(u);
-  return true;
+  // Empty list means voices haven't loaded yet (Chrome loads async) — unknown,
+  // not absent. Only report a miss when the list is populated.
+  return { ok: true, voiceMatched: vs.length === 0 ? null : !!match, lang: tag };
 }
 
 export function stopBrowserSpeech() {

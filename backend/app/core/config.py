@@ -47,4 +47,4 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-SUPPORTED_LANGUAGES = ["en", "hi", "hinglish", "mr", "bn", "ta", "te", "kn", "ml", "gu", "pa"]
+SUPPORTED_LANGUAGES = ["en", "hi", "hinglish", "bn", "ta", "te", "kn", "ml", "gu", "pa"]

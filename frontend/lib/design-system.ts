@@ -64,15 +64,6 @@ export const LANG_DATA = {
     alternates: ["चाय का अनुरोध", "नाश्ते का समय", "गर्म पेय"],
     btnText: "हिंदी वाणी में बोलें",
   },
-  marathi: {
-    badge: "मराठी बोली (Marathi Dialect)",
-    confidence: "Decoded: 95%",
-    raw: '"म-ला... बा-हे-र... जा-या-चे... आ-हे"',
-    clean: '"मला थोडा वेळ बाहेर फिरायला जायचे आहे."',
-    translation: '"I would like to go outside for a short walk."',
-    alternates: ["बाहेर जाणे", "ताजी हवा", "मदत हवी आहे"],
-    btnText: "मराठी आवाजात उच्चार करा",
-  },
   english: {
     badge: "Standard Indian English",
     confidence: "Decoded: 99%",
@@ -92,7 +83,6 @@ export const CLIP_DATA = {
     verbatim: "I... n-eed wa...ter (<breath 0.4s>) pl-ease now",
     clearEn: "I need a glass of water, please right away.",
     clearHi: "मुझे कृपया तुरंत एक गिलास पानी चाहिए।",
-    clearMr: "मला कृपया लगेच एक ग्लास पाणी द्या.",
     rationale: 'Corrected phonetic slurring on "wa...ter", bridged breath interval, and applied user hydration habit context.',
   },
   B: {
@@ -100,7 +90,6 @@ export const CLIP_DATA = {
     verbatim: "S-yync... re-poort done (<tremor pause>) pu-shed c-oode",
     clearEn: "I have finished my sync report and pushed the latest updates to repository.",
     clearHi: "मैंने अपनी सिंक रिपोर्ट पूरी कर ली है और कोड पुश कर दिया है।",
-    clearMr: "मी माझा कामाचा रिपोर्ट पूर्ण केला आहे आणि कोड पुश केला आहे.",
     rationale: "Rebuilt tech phrasing; mapped 'pu-shed c-oode' to daily standup vocabulary dictionary.",
   },
   C: {
@@ -108,7 +97,6 @@ export const CLIP_DATA = {
     verbatim: "T-ime p-ill (<hesitation>) af-ter lu-nch",
     clearEn: "Is it time for my afternoon medication after lunch?",
     clearHi: "क्या दोपहर के भोजन के बाद की दवा लेने का समय हो गया है?",
-    clearMr: "दुपारच्या जेवणानंतरचे औषध घेण्याची वेळ झाली आहे का?",
     rationale: "Cross-referenced user medical regimen schedule for lunchtime pill inquiry.",
   },
 } as const;

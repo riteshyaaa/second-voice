@@ -129,7 +129,6 @@ export default function Board() {
         <select aria-label="Card language" value={lang} onChange={(e) => setLang(e.target.value)} className="rounded-lg px-4 py-3 min-h-[52px]">
           <option value="en">English</option>
           <option value="hi">Hindi</option>
-          <option value="mr">Marathi</option>
         </select>
         <button className="min-h-[52px] px-space-lg bg-primary text-on-primary rounded-xl font-semibold" type="submit">Add card</button>
       </form>

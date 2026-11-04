@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { LANG_DATA, type LangKey } from "@/lib/design-system";
+import { speakBrowser } from "@/lib/api";
 
 const STAGES = [
   { n: "01", icon: "record_voice_over", h: "Speak Naturally", p: "No forced cadence or robotic pronunciation. Use your natural breath pattern." },
@@ -20,27 +21,21 @@ export default function Overview() {
   const [streaming, setStreaming] = useState(false);
   const d = LANG_DATA[lang];
 
+  // Same fixed voice path as the workspace: language tag + explicit voice
+  // pick, otherwise Devanagari demo lines go silent on default voices.
   function heroSpeak() {
     if (!confirmed) return;
     setSpeaking("Speaking Verified Audio...");
     setTimeout(() => {
       setSpeaking("Played Successfully");
-      try {
-        const u = new SpeechSynthesisUtterance("मुझे पानी चाहिए. I would like some water, please.");
-        u.rate = 0.95;
-        speechSynthesis.speak(u);
-      } catch {}
+      speakBrowser("मुझे पानी चाहिए. I would like some water, please.", "hinglish", 0.95);
       setTimeout(() => setSpeaking(""), 2000);
     }, 1200);
   }
 
   function demoSpeak() {
     setStreaming(true);
-    try {
-      const u = new SpeechSynthesisUtterance(d.clean.replace(/[""]/g, ""));
-      u.rate = 0.95;
-      speechSynthesis.speak(u);
-    } catch {}
+    speakBrowser(d.clean.replace(/[""]/g, ""), lang === "hindi" ? "hi" : lang === "english" ? "en" : "hinglish", 0.95);
     setTimeout(() => setStreaming(false), 1500);
   }
 
@@ -187,7 +182,7 @@ export default function Overview() {
             </div>
             <div className="flex items-center gap-space-xs bg-surface-container p-1 rounded-full overflow-x-auto" role="tablist" aria-label="Language">
               {(Object.keys(LANG_DATA) as LangKey[]).map((k) => (
-                <button key={k} role="tab" aria-selected={lang === k} onClick={() => setLang(k)} className={`lang-tab px-space-md py-space-sm rounded-full font-label-md text-label-md font-semibold capitalize ${lang === k ? "bg-primary text-on-primary" : "text-on-surface-variant hover:text-on-surface"}`}>{k === "hinglish" ? "Hinglish" : k === "hindi" ? "हिंदी (Hindi)" : k === "marathi" ? "मराठी (Marathi)" : "English"}</button>
+                <button key={k} role="tab" aria-selected={lang === k} onClick={() => setLang(k)} className={`lang-tab px-space-md py-space-sm rounded-full font-label-md text-label-md font-semibold capitalize ${lang === k ? "bg-primary text-on-primary" : "text-on-surface-variant hover:text-on-surface"}`}>{k === "hinglish" ? "Hinglish" : k === "hindi" ? "हिंदी (Hindi)" : "English"}</button>
               ))}
             </div>
           </div>
