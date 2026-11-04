@@ -5,10 +5,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import DiffView from "@/components/DiffView";
 import CandidatesPanel from "@/components/CandidatesPanel";
+import Waveform from "@/components/Waveform";
+import StageStepper from "@/components/StageStepper";
+import Skeleton from "@/components/Skeleton";
+import AudioPlayer from "@/components/AudioPlayer";
 import { api, speakBrowser, stopBrowserSpeech } from "@/lib/api";
 import type { Candidate } from "@/lib/candidates";
 import { resolveAudioUrl, tapToSpeak, type Card } from "@/lib/cards";
-import { Recorder, toWav16kBlob } from "@/lib/audio";
+import { Recorder, toWav16kBlob, type MeterHandle } from "@/lib/audio";
+import { stageForStatus, statusTone, isBusyStatus, formatElapsed } from "@/lib/stages";
 import { CLIP_DATA, type ClipKey } from "@/lib/design-system";
 
 type Suggestion = {
@@ -61,6 +66,29 @@ export default function Workspace() {
   const editRef = useRef<HTMLTextAreaElement | null>(null);
   const audioEl = useRef<HTMLAudioElement | null>(null);
   const rec = useRef(new Recorder());
+  const [elapsed, setElapsed] = useState(0);
+  const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
+  const meterRef = useRef<MeterHandle | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Derived presentation state — the status string stays the source of truth.
+  const stage = stageForStatus(status);
+  const tone = statusTone(status);
+  const busy = isBusyStatus(status);
+
+  function stopTimer() {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }
+
+  // Never leave the mic meter or timer running after unmount.
+  useEffect(() => () => {
+    stopTimer();
+    meterRef.current?.dispose();
+    meterRef.current = null;
+  }, []);
 
   function showToast(m: string) {
     setToast(m);
@@ -186,10 +214,20 @@ export default function Workspace() {
     try {
       if (!recording) {
         await rec.current.start();
+        meterRef.current = rec.current.attachMeter();
+        setAnalyser(meterRef.current?.analyser ?? null);
+        setElapsed(0);
+        const t0 = Date.now();
+        stopTimer();
+        timerRef.current = setInterval(() => setElapsed((Date.now() - t0) / 1000), 500);
         setRecording(true);
         setStatus("Recording Active");
       } else {
         const blob = await rec.current.stop();
+        stopTimer();
+        meterRef.current?.dispose();
+        meterRef.current = null;
+        setAnalyser(null);
         setRecording(false);
         let wav: Blob;
         try {
@@ -380,32 +418,32 @@ export default function Workspace() {
                 <div><h1 className="font-headline-md text-headline-md font-bold text-on-surface" id="stage-heading">Say it your way</h1><p className="font-body-sm text-body-sm text-on-surface-variant">Record, or type if recording is hard today</p></div>
               </div>
               <div className="flex items-center gap-space-xs bg-surface-container-lowest px-space-md py-space-sm rounded-full">
-                <span className={`w-2.5 h-2.5 rounded-full animate-pulse ${recording ? "bg-error" : "bg-primary"}`} />
-                <span className={`font-label-md text-label-md font-bold uppercase tracking-wider ${recording ? "text-error" : "text-primary"}`} role="status">{status}</span>
+                <span aria-hidden className={`w-2.5 h-2.5 rounded-full ${tone === "recording" ? "bg-error animate-pulse" : tone === "busy" ? "bg-tertiary animate-pulse" : tone === "error" ? "bg-error" : "bg-primary"}`} />
+                <span className={`font-label-md text-label-md font-bold uppercase tracking-wider ${tone === "recording" || tone === "error" ? "text-error" : "text-primary"}`} role="status">{status}</span>
               </div>
             </div>
             <div className="flex flex-col lg:flex-row items-center gap-space-lg bg-surface-container-lowest p-space-lg rounded-xl">
               <div className="flex flex-col items-center gap-space-sm">
                 <div className="relative">
-                  <div className={`absolute -inset-3 rounded-full blur-md animate-pulse ${recording ? "bg-error/30" : "bg-primary/20"}`} />
-                  <button aria-label="Toggle Motor-Speech Acoustic Recording" onClick={record} type="button" className="relative w-28 h-28 rounded-full bg-primary text-on-primary flex flex-col items-center justify-center active:scale-95">
-                    <span className="material-symbols-outlined text-[44px]">mic</span><span className="font-label-sm text-label-sm font-bold mt-1">{recording ? "STOP" : "HOLD / TAP"}</span>
+                  {recording && <span className="rec-ring" aria-hidden />}
+                  <button aria-label={recording ? "Stop recording" : "Start recording"} onClick={record} type="button" className="relative w-28 h-28 rounded-full bg-primary text-on-primary flex flex-col items-center justify-center pressable">
+                    <span className="material-symbols-outlined text-[44px]" aria-hidden>mic</span><span className="font-label-sm text-label-sm font-bold mt-1">{recording ? "STOP" : "HOLD / TAP"}</span>
                   </button>
                 </div>
-                <span className="font-label-sm text-label-sm text-on-surface-variant">Dwell or Spacebar</span>
+                <span className="font-label-sm text-label-sm text-on-surface-variant">{recording ? `Recording ${formatElapsed(elapsed)} — tap STOP when done` : "Dwell or Spacebar"}</span>
               </div>
               <div className="w-full flex-1 flex flex-col gap-space-xs">
-                <div className="flex items-center justify-between font-label-sm text-label-sm text-on-surface-variant px-space-xs"><span>{recording ? "Recording…" : "Sound level (display only)"}</span></div>
+                <div className="flex items-center justify-between font-label-sm text-label-sm text-on-surface-variant px-space-xs">
+                  <span>{recording ? "Recording — live level" : "Sound level (display only)"}</span>
+                  <span className="tabular-nums font-bold text-on-surface" aria-label={`Elapsed recording time ${formatElapsed(elapsed)}`}>{formatElapsed(elapsed)}</span>
+                </div>
                 <div className="flex items-center gap-2 px-space-xs" role="group" aria-label="Language you will speak">
                   <span className="font-label-sm text-label-sm text-on-surface-variant">I speak:</span>
                   {(["en", "hi"] as const).map((l) => (
                     <button key={l} type="button" onClick={() => setLang(l)} aria-pressed={lang === l} className={`min-h-[48px] px-4 rounded-full font-semibold text-label-sm font-label-sm ${lang === l ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant"}`}>{l === "en" ? "English" : "हिन्दी"}</button>
                   ))}
                 </div>
-                <svg className="w-full h-24 text-primary bg-surface-container rounded-lg p-2" fill="none" viewBox="0 0 600 80" preserveAspectRatio="none" aria-hidden>
-                  <path className="opacity-90" d="M0,40 Q15,10 30,40 T60,40 T90,20 T120,60 T150,40 T180,5 T210,75 T240,40 T270,25 T300,55 T330,40 T360,15 T390,65 T420,40 T450,30 T480,50 T510,40 T540,10 T570,70 T600,40" stroke="currentColor" strokeLinecap="round" strokeWidth="2.5" />
-                  <path className="opacity-40" d="M0,40 Q20,30 40,40 T80,40 T120,25 T160,55 T200,40 T240,15 T280,65 T320,40 T360,35 T400,45 T440,40 T480,25 T520,55 T560,40 T600,40" stroke="#a0d0c6" strokeLinecap="round" strokeWidth="1.5" />
-                </svg>
+                <Waveform analyser={analyser} active={recording} label={recording ? "Live microphone level" : "Sound level display"} />
                 <div className="flex items-center justify-between gap-space-sm">
                   <span className="text-on-surface-variant font-label-sm text-label-sm">Speech recognition is imperfect — your original words are always kept.</span>
                   <div className="flex gap-2">
@@ -417,16 +455,34 @@ export default function Workspace() {
             </div>
           </section>
 
+          <div className="bg-surface-container rounded-xl px-space-lg py-space-md">
+            <StageStepper stage={stage} />
+          </div>
+
           <section aria-label="Speech Reconstruction Comparison" className="grid grid-cols-1 md:grid-cols-2 gap-gutter items-stretch">
             <article className="bg-surface-container rounded-xl p-space-lg flex flex-col gap-space-sm">
               <div className="flex items-center gap-space-xs"><span className="material-symbols-outlined text-on-surface-variant text-[20px]">hearing</span><h2 className="font-label-lg text-label-lg font-bold text-on-surface">What We Heard</h2></div>
               <p className="font-body-sm text-body-sm text-on-surface-variant">Original un-altered capture. Never overwritten.</p>
-              <div className="bg-surface-container-lowest p-space-md rounded-lg min-h-[140px] font-body-xl text-body-xl text-on-surface">{transcript || "No audio recorded yet. Tap microphone or load sample clip above."}</div>
+              <div className="bg-surface-container-lowest p-space-md rounded-lg min-h-[140px] font-body-xl text-body-xl text-on-surface">
+                {transcript ? (
+                  <span key={transcript} className="fade-in block">{transcript}</span>
+                ) : busy ? (
+                  <Skeleton height={140} label="Transcribing your audio" />
+                ) : (
+                  "No audio recorded yet. Tap microphone or load sample clip above."
+                )}
+              </div>
               {asr && (
-                <p className="font-body-sm text-body-sm text-on-surface-variant" aria-label="Recognition evidence">
-                  Heard by {asr.provider}{asr.fallback ? " (typed fallback — no speech recognition ran)" : ""}. No word-level confidence is claimed.
-                  {(asr.uncertainty || []).filter((u) => u.severity !== "info").slice(0, 2).map((u) => ` ${u.message}`).join("")}
-                </p>
+                <div className="flex flex-col gap-1" aria-label="Recognition evidence">
+                  <p className="font-body-sm text-body-sm text-on-surface-variant">
+                    Heard by {asr.provider}{asr.fallback ? " (typed fallback — no speech recognition ran)" : ""}. No word-level confidence is claimed.
+                  </p>
+                  {(asr.uncertainty || []).filter((u) => u.severity !== "info").slice(0, 2).map((u, i) => (
+                    <p key={i} className="inline-flex items-center gap-1 font-body-sm text-body-sm text-on-surface bg-surface-container-high rounded-lg px-2 py-1 self-start">
+                      <span className="material-symbols-outlined text-[16px]" aria-hidden>warning</span>{u.message}
+                    </p>
+                  ))}
+                </div>
               )}
               {sug && <div className="mt-1"><DiffView original={sug.original_text} proposed={sug.proposed_text} /></div>}
             </article>
@@ -435,7 +491,15 @@ export default function Workspace() {
               <div className="flex items-center gap-space-xs bg-surface-container px-3 py-1 rounded-lg self-start" aria-label="Detected language">
                 <span className="font-label-sm text-label-sm text-on-surface-variant">Heard as: <strong className="text-on-surface">{lang === "hi" ? "हिन्दी" : lang === "hinglish" ? "Hinglish" : "English"}</strong></span>
               </div>
-              <div className="bg-surface-container-lowest p-space-md rounded-lg min-h-[140px] font-body-xl text-body-xl text-on-surface">{sug ? (edit || sug.proposed_text) : "Record, type, or load a sample above to get a suggestion here."}</div>
+              <div className="bg-surface-container-lowest p-space-md rounded-lg min-h-[140px] font-body-xl text-body-xl text-on-surface">
+                {sug ? (
+                  <span key={sug.suggestion_id} className="fade-in block">{edit || sug.proposed_text}</span>
+                ) : busy ? (
+                  <Skeleton height={140} label="Understanding your message" />
+                ) : (
+                  "Record, type, or load a sample above to get a suggestion here."
+                )}
+              </div>
               {sug && <p className="font-body-sm text-body-sm text-on-surface-variant"><strong className="text-on-surface">Why this change:</strong> {sug.explanation}</p>}
               {sug && (
                 <label className="block"> <span className="text-sm font-semibold">Edit before confirming</span>
@@ -458,7 +522,7 @@ export default function Workspace() {
                 <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface" id="clarify-heading">A quick check before you confirm</h2>
                 <p className="font-body-sm text-body-sm text-on-surface-variant">The system is unsure about {blockers.length > 0 ? `${blockers.length} thing${blockers.length > 1 ? "s" : ""} that could change meaning` : "something"} — speech stays locked until blockers are answered or skipped. Your original audio is below for replay.</p>
               </div>
-              {replayUrl && <audio className="w-full" controls src={resolveAudioUrl(replayUrl)} aria-label="Replay your original recording" />}
+              {replayUrl && <AudioPlayer src={resolveAudioUrl(replayUrl)} label="Replay your original recording" kind="original" />}
               {questions.map((q) => (
                 <div key={q.id} className="bg-surface-container-lowest rounded-lg p-space-md flex flex-col gap-2">
                   <p className="font-label-lg text-label-lg font-semibold text-on-surface">{q.question}</p>
@@ -487,11 +551,11 @@ export default function Workspace() {
 
           <section aria-label="Confirmation" className="bg-surface-container rounded-xl p-space-md flex flex-wrap items-center gap-space-md">
             <div className="flex flex-wrap items-center gap-space-sm flex-1">
-              <button onClick={() => acceptBackend("accept")} disabled={!sug} className="min-h-[56px] px-space-lg rounded-xl bg-primary text-on-primary font-label-lg text-label-lg font-bold disabled:opacity-40 flex items-center gap-2"><span className="material-symbols-outlined" aria-hidden>check_circle</span>Accept suggestion</button>
-              <button onClick={() => acceptBackend("edit")} disabled={!sug} className="min-h-[56px] px-space-lg rounded-xl bg-surface-container-high text-on-surface font-label-lg text-label-lg disabled:opacity-40 flex items-center gap-2"><span className="material-symbols-outlined" aria-hidden>edit_note</span>Confirm my edit</button>
-              <button onClick={() => editRef.current?.focus()} className="min-h-[56px] px-space-lg rounded-xl bg-surface-container-high text-on-surface font-label-lg text-label-lg flex items-center gap-2"><span className="material-symbols-outlined" aria-hidden>edit</span>Edit first</button>
-              <button onClick={reject} className="min-h-[56px] px-space-md rounded-xl bg-surface-container-high text-on-surface-variant font-label-lg text-label-lg flex items-center gap-2"><span className="material-symbols-outlined" aria-hidden>replay</span>Keep original</button>
-              <button onClick={savePhrase} className="min-h-[56px] px-space-md rounded-xl bg-surface-container-high text-on-surface-variant font-label-lg text-label-lg flex items-center gap-2"><span className="material-symbols-outlined" aria-hidden>bookmark_add</span>Save to vocabulary</button>
+              <button onClick={() => acceptBackend("accept")} disabled={!sug} className="pressable min-h-[56px] px-space-lg rounded-xl bg-primary text-on-primary font-label-lg text-label-lg font-bold disabled:opacity-40 flex items-center gap-2"><span className="material-symbols-outlined" aria-hidden>check_circle</span>Accept suggestion</button>
+              <button onClick={() => acceptBackend("edit")} disabled={!sug} className="pressable min-h-[56px] px-space-lg rounded-xl bg-surface-container-high text-on-surface font-label-lg text-label-lg disabled:opacity-40 flex items-center gap-2"><span className="material-symbols-outlined" aria-hidden>edit_note</span>Confirm my edit</button>
+              <button onClick={() => editRef.current?.focus()} className="pressable min-h-[56px] px-space-lg rounded-xl bg-surface-container-high text-on-surface font-label-lg text-label-lg flex items-center gap-2"><span className="material-symbols-outlined" aria-hidden>edit</span>Edit first</button>
+              <button onClick={reject} className="pressable min-h-[56px] px-space-md rounded-xl bg-surface-container-high text-on-surface-variant font-label-lg text-label-lg flex items-center gap-2"><span className="material-symbols-outlined" aria-hidden>replay</span>Keep original</button>
+              <button onClick={savePhrase} className="pressable min-h-[56px] px-space-md rounded-xl bg-surface-container-high text-on-surface-variant font-label-lg text-label-lg flex items-center gap-2"><span className="material-symbols-outlined" aria-hidden>bookmark_add</span>Save to vocabulary</button>
             </div>
             <span className="text-on-surface-variant font-label-sm text-label-sm">{approvedId ? <span className="text-primary font-bold">Confirmed — only this text can be spoken</span> : "Awaiting your confirmation"}</span>
           </section>
@@ -528,10 +592,10 @@ export default function Workspace() {
               <label className="flex flex-col gap-1 font-label-sm text-label-sm text-on-surface-variant">Speaking speed <span className="text-primary font-bold">{rate.toFixed(2)}x</span><input type="range" min={0.5} max={1.5} step={0.05} value={rate} onChange={(e) => setRate(Number(e.target.value))} className="w-full accent-primary" aria-label="Speaking speed" /></label>
             </div>
             <div className="flex flex-col sm:flex-row items-center gap-space-md">
-              <button onClick={speak} disabled={!approvedId} className={`w-full flex-1 min-h-[64px] px-space-xl rounded-xl font-label-lg text-label-lg font-bold flex items-center justify-center gap-3 ${approvedId ? "bg-primary text-on-primary" : "bg-surface-container-highest cursor-not-allowed"}`}>
+              <button onClick={speak} disabled={!approvedId} className={`pressable w-full flex-1 min-h-[64px] px-space-xl rounded-xl font-label-lg text-label-lg font-bold flex items-center justify-center gap-3 ${approvedId ? "bg-primary text-on-primary" : "bg-surface-container-highest cursor-not-allowed"}`}>
                 <span className="material-symbols-outlined text-[28px]" aria-hidden>volume_up</span>{approvedId ? "Speak confirmed text" : "Speak (locked until confirmed)"}
               </button>
-              {audioUrl && <audio ref={audioEl} className="w-full" controls src={audioUrl} aria-label="Confirmed speech playback" />}
+              {audioUrl && <AudioPlayer src={audioUrl} label="Confirmed speech playback" kind="confirmed" audioRef={audioEl} />}
               <button onClick={() => { stopBrowserSpeech(); audioEl.current?.pause(); setAudioUrl(""); }} className="min-h-[64px] px-space-md rounded-xl bg-surface-container text-on-surface font-label-md text-label-md">Stop</button>
             </div>
           </section>
@@ -552,7 +616,7 @@ export default function Workspace() {
           </section>
         </div>
       </div>
-      {toast && <div className="fixed bottom-6 right-6 z-50 bg-primary text-on-primary px-space-lg py-space-md rounded-xl font-label-lg text-label-lg font-bold flex items-center gap-space-sm"><span className="material-symbols-outlined text-[22px]">check_circle</span>{toast}</div>}
+      {toast && <div role="status" className="toast-in fixed bottom-6 right-6 z-50 bg-primary text-on-primary px-space-lg py-space-md rounded-xl font-label-lg text-label-lg font-bold flex items-center gap-space-sm"><span className="material-symbols-outlined text-[22px]" aria-hidden>check_circle</span>{toast}</div>}
     </div>
     </RequireAuth>
   );

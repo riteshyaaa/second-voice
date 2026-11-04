@@ -54,3 +54,55 @@ body {
 .high-contrast {
   filter: contrast(1.15);
 }
+
+/* ---- Second Voice motion utilities (calm by default) ---- */
+
+/* Gentle entrance for newly arrived content (transcript, suggestion, players). */
+@keyframes sv-fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.fade-in { animation: sv-fade-up 220ms ease-out both; }
+
+/* Skeleton shimmer in surface tones (functional loading signal, not decoration). */
+@keyframes sv-shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #202b34 25%, #2a363f 50%, #202b34 75%);
+  background-size: 800px 100%;
+  animation: sv-shimmer 1.4s linear infinite;
+  border-radius: 0.5rem;
+}
+
+/* Toast entrance. */
+@keyframes sv-toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.toast-in { animation: sv-toast-in 200ms ease-out both; }
+
+/* Expanding ring behind the mic button while recording. */
+@keyframes sv-ring {
+  0% { transform: scale(1); opacity: 0.45; }
+  100% { transform: scale(1.45); opacity: 0; }
+}
+.rec-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 3px solid #ffb4ab;
+  animation: sv-ring 1.6s ease-out infinite;
+  pointer-events: none;
+}
+
+/* Consistent press + color transitions for action buttons. */
+.pressable {
+  transition: transform 120ms ease, background-color 160ms ease, color 160ms ease, opacity 160ms ease;
+}
+.pressable:active { transform: scale(0.97); }
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; background: #202b34; }
+}

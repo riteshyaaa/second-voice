@@ -69,11 +69,14 @@ export async function toWav16kBlob(blob: Blob): Promise<Blob> {
   return encodeWavPCM(rendered.getChannelData(0));
 }
 
+export type MeterHandle = { analyser: AnalyserNode; dispose: () => void };
+
 /** Minimal MediaRecorder wrapper producing a single audio Blob. */
 export class Recorder {
   private mr: MediaRecorder | null = null;
   private chunks: Blob[] = [];
   private stream: MediaStream | null = null;
+  private meterCtx: AudioContext | null = null;
   state: RecState = "idle";
 
   async start(): Promise<void> {
@@ -107,10 +110,41 @@ export class Recorder {
       if (!this.mr) return reject(new Error("Not recording"));
       this.mr.onstop = () => {
         this.stream?.getTracks().forEach((t) => t.stop());
+        this.disposeMeter();
         this.state = "idle";
         resolve(new Blob(this.chunks, { type: this.mr?.mimeType || "audio/webm" }));
       };
       this.mr.stop();
     });
+  }
+
+  /**
+   * Live level meter for the active mic stream (powers the recording
+   * waveform). Returns null when idle. Dispose on stop/unmount; `stop()`
+   * also disposes automatically. Never affects the recorded Blob.
+   */
+  attachMeter(): MeterHandle | null {
+    if (!this.stream || typeof window === "undefined") return null;
+    try {
+      const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      this.disposeMeter();
+      const ctx = new AC();
+      const src = ctx.createMediaStreamSource(this.stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.75;
+      src.connect(analyser);
+      this.meterCtx = ctx;
+      return { analyser, dispose: () => this.disposeMeter() };
+    } catch {
+      return null;
+    }
+  }
+
+  private disposeMeter() {
+    if (this.meterCtx) {
+      this.meterCtx.close().catch(() => {});
+      this.meterCtx = null;
+    }
   }
 }

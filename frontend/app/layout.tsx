@@ -23,7 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="bg-surface text-on-surface font-body-md text-body-md antialiased min-h-screen">
         <Header />
-        <main className="w-full pt-20 bg-surface min-h-[calc(100vh-200px)]">{children}</main>
+        <main className="fade-in w-full pt-20 bg-surface min-h-[calc(100vh-200px)]">{children}</main>
         <Footer />
       </body>
     </html>
