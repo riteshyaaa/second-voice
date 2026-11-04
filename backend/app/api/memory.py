@@ -99,6 +99,14 @@ def delete_vocab(entry_id: int, user: models.User = Depends(current_user), db: S
 
 
 # --- Memory ---
+@router.get("/personalization/review")
+def personalization_review(user: models.User = Depends(current_user), db: Session = Depends(get_db)):
+    """Phase 7: everything the system learned about this user, with the
+    actions each item supports. Correction patterns are a ranked derived
+    view (nothing stored separately); calibration is storage-only."""
+    return personalization_service.review(db, user.id)
+
+
 @router.get("/memory")
 def list_memory(user: models.User = Depends(current_user), db: Session = Depends(get_db)):
     rows = db.query(models.CommMemory).filter(models.CommMemory.user_id == user.id).order_by(models.CommMemory.id.desc()).limit(100).all()

@@ -229,6 +229,57 @@ def reverted_swap(swap: dict, final_text: str) -> bool:
     return swap["variant"].lower() in f_toks and swap["canonical"] not in (final_text or "")
 
 
+def review(db: Session, user_id: int) -> dict:
+    """Phase 7: everything the system learned about one user, in one place.
+
+    Vocabulary and memory entries carry the actions their endpoints
+    support (edit/delete/rollback). Correction patterns are a derived,
+    ranked view (count-descending, ambiguous flagged) — read-only here
+    because no pattern is stored on its own; each pattern cites the
+    Correction rows behind it. Suggestion stats show acceptance and
+    false-personalization counts so claimed improvement stays checkable.
+    """
+    vocab = db.query(models.VocabularyEntry).filter(
+        models.VocabularyEntry.user_id == user_id).order_by(
+        models.VocabularyEntry.times_used.desc()).all()
+    mem = db.query(models.CommMemory).filter(
+        models.CommMemory.user_id == user_id).order_by(
+        models.CommMemory.id.desc()).limit(100).all()
+    patterns = recognition_patterns(db, user_id, limit=20)
+    corrections = db.query(models.Correction).filter(
+        models.Correction.user_id == user_id).all()
+    corr_ids = {c.id for c in corrections}
+    stats = dashboard(db, user_id)
+    clips = db.query(models.CalibrationClip).filter(
+        models.CalibrationClip.user_id == user_id).order_by(
+        models.CalibrationClip.id.desc()).all()
+    return {
+        "vocabulary": [{"id": v.id, "term": v.term, "language": v.language,
+                        "category": v.category, "status": v.status, "source": v.source,
+                        "times_used": v.times_used, "times_corrected": v.times_corrected,
+                        "actions": ["edit", "delete", "rollback"]} for v in vocab],
+        "memory": [{"id": m.id, "kind": m.kind, "content": m.content,
+                    "language": m.language, "version": m.version,
+                    "actions": ["edit", "delete", "rollback"]} for m in mem],
+        "correction_patterns": [{"rank": i + 1, "from": p["from"], "to": p["to"],
+                                 "count": p["count"], "ambiguous": p["ambiguous"],
+                                 "sources": p["sources"],
+                                 "actions": [],
+                                 "note": "derived from your saved corrections; "
+                                         "nothing is stored or trained separately"}
+                                for i, p in enumerate(patterns)],
+        "correction_ids": sorted(corr_ids),
+        "suggestion_stats": {k: stats[k] for k in (
+            "suggestions_total", "suggestions_accepted", "suggestions_rejected",
+            "acceptance_rate", "false_personalizations", "unwanted_rate")},
+        "calibration_clips": [{"id": c.id, "prompt_text": c.prompt_text,
+                               "consent_granted": c.consent_granted,
+                               "status": c.status} for c in clips],
+        "calibration_note": "Consent-gated calibration storage only; "
+                            "no collection or adaptation flow exists yet.",
+    }
+
+
 def recent_approved(db: Session, user_id: int, limit: int = 10) -> list[str]:
     rows = (
         db.query(models.ApprovedMessage)

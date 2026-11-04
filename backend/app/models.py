@@ -228,6 +228,24 @@ class LearningEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class CalibrationClip(Base):
+    """Phase 7: consent-gated calibration storage (tables only).
+
+    A future calibration flow may invite the user to read fixed prompts
+    so future recognition can adapt to their voice. Nothing records,
+    adapts, or trains here: rows exist so consent and status have a
+    place to live, and consent_granted defaults to False.
+    """
+    __tablename__ = "calibration_clips"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    audio_id: Mapped[int | None] = mapped_column(ForeignKey("audio_assets.id", ondelete="SET NULL"), nullable=True)
+    prompt_text: Mapped[str] = mapped_column(Text, default="")
+    consent_granted: Mapped[bool] = mapped_column(Boolean, default=False)
+    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending|consented|recorded|released
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class ConfirmationEvent(Base):
     __tablename__ = "confirmation_events"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
