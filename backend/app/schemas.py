@@ -155,3 +155,7 @@ class SuggestionOut(BaseModel):
     meaning_risk: str = "low"
     provider: str = "dev-fallback"
     model_version: str = ""
+
+
+class RestorationJobIn(BaseModel):
+    beam: int = Field(default=5, ge=1, le=20)

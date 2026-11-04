@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api import auth, cards, evaluation, feedback, languages, memory, reconstruction, sessions, settings, speech, transcription
+from .api import auth, cards, evaluation, feedback, languages, memory, reconstruction, restoration, sessions, settings, speech, transcription
 from .core.config import settings as cfg
 from .core.database import init_db
 from .core.logging import log, new_trace
@@ -50,5 +50,5 @@ def healthz():
 
 for r in (auth.router, sessions.router, transcription.router, reconstruction.router,
           languages.router, memory.router, feedback.router, speech.router, settings.router,
-          evaluation.router, cards.router):
+          evaluation.router, cards.router, restoration.router):
     app.include_router(r)

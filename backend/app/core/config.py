@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     LOCAL_ASR_DEVICE: str = "cpu"
     LOCAL_ASR_COMPUTE: str = "int8"
 
+    RESTORATION_ENABLED: bool = False
+    RESTORATION_S2U_URL: str = "http://inference:8001"
+    RESTORATION_CHECKPOINT: str = "wtimit_44spkrs_trained.pt"
+    RESTORATION_BEAM: int = 5
+    RESTORATION_TIMEOUT_S: float = 180.0
+
     TTS_PROVIDER: str = "webspeech-fallback"
     AZURE_SPEECH_KEY: str = ""
     AZURE_SPEECH_REGION: str = ""

@@ -247,3 +247,23 @@ class TTSRequest(Base):
     audio_path: Mapped[str] = mapped_column(String(512), default="")
     fallback: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class RestorationJob(Base):
+    """CLARIS P4: one restoration attempt over an immutable original.
+
+    Stages run per pipeline.plan_stages(); only stages with status
+    `ready` execute. Units evidence lands in a `restored` AudioDerivative
+    (operation `s2u-units`, JSON) — never a waveform, until the vocoder
+    question resolves.
+    """
+    __tablename__ = "restoration_jobs"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    audio_id: Mapped[int] = mapped_column(ForeignKey("audio_assets.id", ondelete="CASCADE"), index=True)
+    checkpoint: Mapped[str] = mapped_column(String(80), default="")
+    beam: Mapped[int] = mapped_column(Integer, default=5)
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    stages: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    derivative_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

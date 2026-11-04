@@ -36,6 +36,18 @@ services:
       timeout: 5s
       retries: 10
 
+  inference:
+    build:
+      context: .
+      dockerfile: inference/Dockerfile
+    environment:
+      CLARIS_CHECKPOINT: ${RESTORATION_CHECKPOINT:-wtimit_44spkrs_trained.pt}
+      CLARIS_BEAM: ${RESTORATION_BEAM:-5}
+    volumes:
+      - ./models/claris:/models/claris:ro
+    expose:
+      - "8001"
+
   frontend:
     build: ./frontend
     environment:
