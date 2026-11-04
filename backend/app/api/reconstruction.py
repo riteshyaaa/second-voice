@@ -64,6 +64,7 @@ async def reconstruct(body: schemas.ReconstructIn, user: models.User = Depends(c
         needs_clarification=out["needs_clarification"], clarification_question=out["clarification_question"],
         abstained=out["abstained"], evidence_for=out.get("evidence_for", []),
         evidence_missing=out.get("evidence_missing", []),
+        candidates=out.get("candidates", []),
         provider=out.get("provider", status.name),
         model_version=out.get("model_version", status.model_version),
     )

@@ -123,6 +123,7 @@ class Suggestion(Base):
     abstained: Mapped[bool] = mapped_column(Boolean, default=False)
     evidence_for: Mapped[list | None] = mapped_column(JSON, nullable=True)  # Phase 7 audit
     evidence_missing: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    candidates: Mapped[list | None] = mapped_column(JSON, nullable=True)  # Phase 6: source-labelled
     clarification_answers: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # Phase 8: {qid: answer}
     provider: Mapped[str] = mapped_column(String(40), default="dev-fallback")
     model_version: Mapped[str] = mapped_column(String(80), default="")

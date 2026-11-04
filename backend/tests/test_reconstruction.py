@@ -27,3 +27,16 @@ def test_suggest_never_flips_negation():
 
     out, _ = asyncio.run(rs.suggest("I don't want to go.", {}, [], "en", ""))
     assert "don't" in out["proposed_text"].lower() or "not" in out["proposed_text"].lower() or out["abstained"]
+
+
+def test_approved_vocab_swap_exempts_name_guard():
+    # Strict by default: Arav -> Aarav reads as a dropped name.
+    assert any("name dropped" in p for p in rs.violates_guards("Call Arav tomorrow", "Call Aarav tomorrow."))
+    # User-approved mapping exempts exactly that pair — and only that pair.
+    assert rs.violates_guards("Call Arav tomorrow", "Call Aarav tomorrow.",
+                              {"arav": "Aarav"}) == []
+    assert any("name dropped" in p for p in rs.violates_guards(
+        "Call Arav tomorrow", "Call Vikram tomorrow.", {"arav": "Aarav"}))
+    # The rules layer no longer abstains on the flagship approved-swapping case.
+    out = rs.rules_only_suggestion("Call Arav tomorrow", {"arav": "Aarav"})
+    assert out["abstained"] is False and "Aarav" in out["proposed_text"]

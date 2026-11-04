@@ -89,9 +89,16 @@ GUARD_CATEGORIES = ("negation", "number", "name", "datetime", "modal",
                       "conditional", "unit", "medical")
 
 
-def _guard_checks(original: str, proposed: str) -> list[tuple[str, str]]:
+def _guard_checks(original: str, proposed: str,
+                  approved_swaps: dict[str, str] | None = None) -> list[tuple[str, str]]:
     """Single source of truth: (category, message) violations. Messages are
-    stable API (explanations quote them); guard_scores() reads categories."""
+    stable API (explanations quote them); guard_scores() reads categories.
+
+    approved_swaps ({variant-lower -> canonical}, user-approved vocabulary)
+    exempts name pairs the user explicitly mapped: "dropped without
+    approved mapping" does not fire when the mapping exists. Omitted (None)
+    means no exemptions — the historical strict behavior.
+    """
     found: list[tuple[str, str]] = []
     if _negation_set(original) != _negation_set(proposed):
         found.append(("negation", "negation changed — intent would reverse"))
@@ -107,7 +114,12 @@ def _guard_checks(original: str, proposed: str) -> list[tuple[str, str]]:
             found.append(("negation", "negation dropped"))
     # Phase 7 semantic preservation (deterministic layer)
     o_names, p_names = _proper_nouns(original), _proper_nouns(proposed)
+    p_lower = {p.lower() for p in p_names}
     dropped_names = o_names - p_names
+    if approved_swaps:
+        dropped_names = {n for n in dropped_names
+                         if not (n.lower() in approved_swaps
+                                 and str(approved_swaps[n.lower()]).lower() in p_lower)}
     if dropped_names:
         found.append(("name", f"name dropped without approved mapping: {sorted(dropped_names)[0]}"))
     o_dates, p_dates = _dates(original), _dates(proposed)
@@ -129,14 +141,16 @@ def _guard_checks(original: str, proposed: str) -> list[tuple[str, str]]:
     return found
 
 
-def violates_guards(original: str, proposed: str) -> list[str]:
+def violates_guards(original: str, proposed: str,
+                    approved_swaps: dict[str, str] | None = None) -> list[str]:
     """Return list of violated meaning-preservation rules (empty = safe)."""
-    return [m for _, m in _guard_checks(original, proposed)]
+    return [m for _, m in _guard_checks(original, proposed, approved_swaps)]
 
 
-def guard_scores(original: str, proposed: str) -> dict[str, bool]:
+def guard_scores(original: str, proposed: str,
+                 approved_swaps: dict[str, str] | None = None) -> dict[str, bool]:
     """Phase 11: per-category preservation (True = preserved)."""
-    failed = {c for c, _ in _guard_checks(original, proposed)}
+    failed = {c for c, _ in _guard_checks(original, proposed, approved_swaps)}
     return {c: (c not in failed) for c in GUARD_CATEGORIES}
 
 
@@ -191,7 +205,7 @@ def rules_only_suggestion(original: str, vocab_map: dict[str, str]) -> dict:
             changed.append({"from": pat.pattern, "to": rep, "reason": "small grammar fix, meaning unchanged"})
     if not proposed.endswith((".", "?", "!", "।")):
         proposed += "."
-    problems = violates_guards(text, proposed)
+    problems = violates_guards(text, proposed, vocab_map)
     if problems:
         return _out(text, text, "Kept your exact words — auto-fix would risk changing meaning: " + "; ".join(problems),
                     [], [text], True, "Did you mean this exactly as written?", True, "high")
@@ -239,16 +253,17 @@ async def suggest(transcript: str, vocab_map: dict[str, str], history: list[str]
     hints = (context or {}).get("pattern_hints", [])
     used = (context or {}).get("context_used", [])
     indicators = (context or {}).get("uncertainty", [])
+    secondary_text = (context or {}).get("secondary_text")
+    spans = (context or {}).get("language_spans", [])
     if not meta_available(settings.META_API_KEY):
         out = dict(base)
         out.update(provider="dev-fallback", model_version="rules-v1.2")
         if used:
             out["context_used"] = used
+        out["candidates"] = label_candidates(transcript, vocab_map, out, secondary_text)
         out = escalate(out, indicators)
         return out, ProviderStatus("dev-fallback", "rules-v1.2", False, "META_API_KEY not set; deterministic rules only")
     reliability = reliability or "Transcript is an unverified ASR interpretation (no confidence scores); audio is primary."
-    secondary_text = (context or {}).get("secondary_text")
-    spans = (context or {}).get("language_spans", [])
     try:
         spark, status = await muse_spark_service.reconstruct(
             transcript, f"ASR interpretation (imperfect): {transcript!r}", spark_vocab, spark_hist,
@@ -259,8 +274,9 @@ async def suggest(transcript: str, vocab_map: dict[str, str], history: list[str]
         out = dict(base)
         out.update(provider="dev-fallback", model_version="rules-v1.2")
         out["explanation"] += f" (AI unavailable: {exc}. Showing safe rules-only suggestion.)"
+        out["candidates"] = label_candidates(transcript, vocab_map, out, secondary_text)
         return out, ProviderStatus("dev-fallback", "rules-v1.2", False, str(exc)[:200])
-    problems = violates_guards(transcript, spark.proposed_text or transcript)
+    problems = violates_guards(transcript, spark.proposed_text or transcript, vocab_map)
     if problems or not (spark.proposed_text or "").strip():
         # REJECT the model output — return abstention, keep transcript.
         out = _out(transcript, transcript,
@@ -268,6 +284,8 @@ async def suggest(transcript: str, vocab_map: dict[str, str], history: list[str]
                    [], [transcript], True, spark.clarification_question or "Could you say that once more, or type the key word?",
                    True, "high")
         out.update(provider=status.name, model_version=status.model_version)
+        out["candidates"] = label_candidates(transcript, vocab_map, base, secondary_text,
+                                             spark.proposed_text)
         return out, status
     merged_changed = (spark.changed_words or []) + [c for c in base["changed_words"] if c not in (spark.changed_words or [])]
     alts = list(dict.fromkeys((spark.alternatives or []) + base["alternatives"]))[:4]
@@ -277,9 +295,70 @@ async def suggest(transcript: str, vocab_map: dict[str, str], history: list[str]
                evidence_for=spark.evidence_for, evidence_missing=spark.evidence_missing,
                uncertainty_reasons=spark.uncertainty_reasons)
     out.update(provider=status.name, model_version=status.model_version)
+    out["candidates"] = label_candidates(transcript, vocab_map, base, secondary_text,
+                                         spark.proposed_text)
     if used:
         out["context_used"] = used
     return escalate(out, indicators), status
+
+
+def label_candidates(transcript: str, vocab_map: dict[str, str], base_out: dict,
+                     secondary_text: str | None = None,
+                     spark_text: str | None = None) -> list[dict]:
+    """Source-labelled candidates for one transcript. Pure.
+
+    Sources: rules (deterministic layer), vocab (approved spellings only),
+    alternative-asr (second engine reading), contextual (Spark proposal),
+    acoustic (regions where engines disagree — flags, not proposals).
+    Every text candidate carries its guard verdict; `usable` is False when
+    guards fire, and the candidate is kept (labelled) rather than hidden.
+    """
+    t = " ".join((transcript or "").split())
+    cands: list[dict] = []
+
+    def _text(source: str, text: str, explanation: str) -> dict | None:
+        text = " ".join(text.split())
+        if not text or text == t:
+            return None
+        guards = violates_guards(t, text, vocab_map)
+        cand = {"source": source, "kind": "text", "text": text,
+                "explanation": explanation, "guards": guards,
+                "usable": not guards}
+        cands.append(cand)
+        return cand
+
+    base = base_out or {}
+    if base.get("proposed_text"):
+        made = _text("rules", base["proposed_text"],
+                     base.get("explanation", "Deterministic rules layer."))
+        if made is not None:
+            made["usable"] = made["usable"] and not base.get("abstained", False)
+
+    vocab_only = t
+    for wrong, right in (vocab_map or {}).items():
+        if wrong.lower() in vocab_only.lower() and wrong.lower() != right.lower():
+            vocab_only = re.sub(re.escape(wrong), right, vocab_only, flags=re.I)
+    if vocab_only != t:
+        _text("vocab", vocab_only, "Your approved spellings applied, nothing else changed.")
+
+    sec = " ".join((secondary_text or "").split())
+    if sec and sec != t:
+        _text("alternative-asr", sec,
+              "What the second engine heard. Kept verbatim; usability is guard-checked.")
+
+    spk = " ".join((spark_text or "").split())
+    if spk and spk != t:
+        _text("contextual", spk, "Context-aware proposal. Kept verbatim; usability is guard-checked.")
+
+    if sec and sec != t:
+        for chunk in diff_words(t, sec):
+            if chunk.get("from"):
+                cands.append({"source": "acoustic", "kind": "uncertain-span",
+                              "span": chunk["from"], "reason": chunk.get("reason", "replace"),
+                              "explanation": "The engines heard this region differently — "
+                                             "the acoustics here are uncertain.",
+                              "guards": [], "usable": True})
+    return cands
 
 
 def alternatives(transcript: str, vocab_map: dict[str, str], count: int = 3) -> list[str]:
