@@ -153,6 +153,126 @@ def test_job_runs_and_stores_units_evidence(user, monkeypatch):
         headers=h2).status_code == 404
 
 
+def test_compare_texts_pure_cases():
+    from app.services.speech_restoration import comparison
+
+    a = comparison.compare_texts("I need help", "I need help", "original", "normalized")
+    assert a["verdict"] == "agree" and a["meaning_divergence"] == []
+    d = comparison.compare_texts("I need help", "I need help please", "original", "normalized")
+    assert d["verdict"] == "disagree" and d["word_diffs"]
+    n = comparison.compare_texts("I need help", "I don't need help", "original", "normalized")
+    assert n["verdict"] == "disagree" and n["meaning_divergence"], "negation flip must surface"
+    e = comparison.compare_texts("", "", "original", "normalized")
+    assert e["verdict"] == "both_empty"
+    o = comparison.compare_texts("hello", "", "original", "normalized")
+    assert o["verdict"] == "either_empty"
+    r = comparison.build_report(original=None, normalized=None, units=None, stages=[])
+    by = {x["artifact"]: x for x in r["artifacts"]}
+    assert by["original"]["status"] == "unavailable"
+    assert by["enhanced_audio"]["status"] == "unavailable" and by["enhanced_audio"]["reason"]
+    assert by["restored_waveform"]["status"] == "unavailable" and by["restored_waveform"]["reason"]
+    assert r["comparisons"] == []
+    assert "vocoder" in r["note"].lower() or "waveform" in r["note"].lower()
+
+
+def _ready_job(h, monkeypatch, beam=5):
+    import json as _json
+    import os as _os
+
+    from app import models as _models
+    from app.services.speech_restoration import pipeline as _pipe
+
+    async def fake_run(db, audio, **kw):
+        path = _os.path.join(settings.STORAGE_DIR, f"restored_{audio.id}_units.json")
+        with open(path, "wb") as f:
+            f.write(_json.dumps({"units": [780, 289, 26], "latency_s": 2.4}).encode())
+        d = _models.AudioDerivative(parent_asset_id=audio.id, kind="restored", operation="s2u-units",
+                                    model_version="wtimit_44spkrs_trained.pt", config={},
+                                    file_path=path, mime="application/json",
+                                    duration_s=1.0, status="ready")
+        db.add(d)
+        db.commit()
+        db.refresh(d)
+        return {"derivative": d, "units": [780, 289, 26],
+                "stages": _pipe.plan_stages(restoration_enabled=True),
+                "latency_s": 2.4, "checkpoint": "wtimit_44spkrs_trained.pt"}
+
+    monkeypatch.setattr(_pipe, "run_job", fake_run)
+    monkeypatch.setattr(settings, "RESTORATION_ENABLED", True)
+    s = client.post("/api/v1/audio/sessions", headers=h, json={"title": "c"}).json()["id"]
+    aid = _upload(h, s).json()["audio_id"]
+    job = client.post(f"/api/v1/audio/sessions/{s}/audio/{aid}/restoration/jobs",
+                      headers=h, json={"beam": beam}).json()
+    assert job["status"] == "units_ready", job
+    return s, aid, job
+
+
+def test_comparison_needs_ready_job(user, monkeypatch):
+    from app.services.speech_restoration import pipeline as _pipe
+    from app.services.speech_restoration.s2u_client import S2UUnavailable
+
+    monkeypatch.setattr(settings, "RESTORATION_ENABLED", True)
+    s = client.post("/api/v1/audio/sessions", headers=user, json={"title": "c"}).json()["id"]
+    aid = _upload(user, s).json()["audio_id"]
+    assert client.get(
+        f"/api/v1/audio/sessions/{s}/audio/{aid}/restoration/jobs/999/comparison",
+        headers=user).status_code == 404
+
+    async def boom(db, audio, **kw):
+        raise S2UUnavailable("sidecar down")
+
+    monkeypatch.setattr(_pipe, "run_job", boom)
+    failed = client.post(f"/api/v1/audio/sessions/{s}/audio/{aid}/restoration/jobs",
+                         headers=user, json={}).json()
+    assert failed["status"] == "failed"
+    r = client.get(
+        f"/api/v1/audio/sessions/{s}/audio/{aid}/restoration/jobs/{failed['job_id']}/comparison",
+        headers=user)
+    assert r.status_code == 409 and "units_ready" in r.json()["detail"]
+
+
+def test_comparison_report_live_shapes(user, monkeypatch):
+    from app.services import meta_asr_service as _meta
+
+    async def fake_transcribe(data, mime, lang="auto", keywords=None):
+        text = "hello world" if mime == "audio/wav" and len(data) > 100 else "hello world"
+        return {"text": text, "language": "en", "provider": "stub-asr",
+                "model_version": "stub-1", "confidence": None, "timestamps": None, "fallback": True}
+
+    monkeypatch.setattr(_meta, "transcribe", fake_transcribe)
+    s, aid, job = _ready_job(user, monkeypatch)
+    r = client.get(
+        f"/api/v1/audio/sessions/{s}/audio/{aid}/restoration/jobs/{job['job_id']}/comparison",
+        headers=user)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    by = {x["artifact"]: x for x in body["artifacts"]}
+    assert by["original"]["status"] == "ready" and by["normalized"]["status"] == "ready"
+    assert by["s2u_units"]["status"] == "ready" and by["s2u_units"]["n_units"] == 3
+    assert by["s2u_units"]["first_units"] == [780, 289, 26]
+    assert by["enhanced_audio"]["status"] == "unavailable"
+    assert by["restored_waveform"]["status"] == "unavailable"
+    assert body["comparisons"] and body["comparisons"][0]["verdict"] == "agree"
+    assert body["job_id"] == job["job_id"]
+
+
+def test_comparison_records_asr_failure(user, monkeypatch):
+    from app.services import meta_asr_service as _meta
+
+    async def boom(data, mime, lang="auto", keywords=None):
+        raise RuntimeError("asr down")
+
+    monkeypatch.setattr(_meta, "transcribe", boom)
+    s, aid, job = _ready_job(user, monkeypatch)
+    body = client.get(
+        f"/api/v1/audio/sessions/{s}/audio/{aid}/restoration/jobs/{job['job_id']}/comparison",
+        headers=user).json()
+    by = {x["artifact"]: x for x in body["artifacts"]}
+    assert by["original"]["status"] == "failed" and "asr down" in by["original"]["reason"]
+    assert body["comparisons"] == []  # no pair to compare: honestly empty
+    assert by["s2u_units"]["status"] == "ready"  # stored evidence unaffected
+
+
 def test_job_failure_is_recorded_not_hidden(user, monkeypatch):
     async def boom(db, audio, **kw):
         raise S2UUnavailable("inference sidecar unreachable at http://x: boom")
