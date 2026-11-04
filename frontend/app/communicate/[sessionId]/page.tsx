@@ -503,6 +503,20 @@ export default function Workspace() {
                       <option key={v} className="bg-surface-container" value={v}>{v}</option>
                     ))}
                   </select>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const p = await api.previewVoice(lang, voice, rate);
+                        setAudioUrl((prev) => { if (prev.startsWith("blob:")) URL.revokeObjectURL(prev); return p.blobUrl; });
+                        showToast(`Preview: fixed sample in ${p.provider === "google" ? "selected voice" : "browser fallback tone"}.`);
+                      } catch (e) { showToast(e instanceof Error ? e.message : "Preview failed."); }
+                    }}
+                    className="min-h-[48px] px-3 rounded-lg bg-surface-container-high text-on-surface font-semibold"
+                    aria-label="Preview selected voice with a fixed sample"
+                  >
+                    Preview
+                  </button>
                 </div>
               )}
             </div>

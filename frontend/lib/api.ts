@@ -75,6 +75,16 @@ export const api = {
   stats: () => req("/api/v1/feedback/stats"),
   synthesize: (approved_message_id: number, voice = "", speed = 1.0) =>
     req("/api/v1/speech/synthesize", { method: "POST", body: JSON.stringify({ approved_message_id, voice, speed }) }),
+  previewVoice: async (language: string, voice = "", speed = 1.0) => {
+    const t = token();
+    const res = await fetch(`${API_URL}/api/v1/speech/preview`, {
+      method: "POST",
+      headers: { ...(t ? { Authorization: `Bearer ${t}` } : {}), "Content-Type": "application/json" },
+      body: JSON.stringify({ language, voice, speed }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return { blobUrl: URL.createObjectURL(await res.blob()), provider: res.headers.get("X-TTS-Provider") };
+  },
   voices: (language: string) => req(`/api/v1/speech/voices?language=${language}`),
   sessions: () => req("/api/v1/sessions"),
   sessionDetail: (id: number) => req(`/api/v1/sessions/${id}`),

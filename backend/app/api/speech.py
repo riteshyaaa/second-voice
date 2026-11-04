@@ -34,10 +34,11 @@ async def synthesize(body: schemas.SynthesizeIn, user: models.User = Depends(cur
         raise HTTPException(status_code=409, detail={
             "code": "UNCONFIRMED", "message": "This text was never confirmed. Confirm it first."})
     voice = body.voice or (db.query(models.UserPreference).filter(models.UserPreference.user_id == user.id).first().tts_voice if db.query(models.UserPreference).filter(models.UserPreference.user_id == user.id).first() else "")
-    if voice and msg.language in tts_service.VOICES and voice not in tts_service.voices_for(msg.language):
+    ok, supported = tts_service.check_voice(msg.language, voice)
+    if not ok:
         raise HTTPException(status_code=409, detail={
             "code": "VOICE_UNSUPPORTED", "message": f"Voice {voice} not available for {msg.language}.",
-            "supported_voices": tts_service.voices_for(msg.language)})
+            "supported_voices": supported})
     path = tts_service.tts_path(user.id, msg.id)
     try:
         info = await tts_service.synthesize(msg.final_text, msg.language, voice, body.speed, path)
@@ -52,6 +53,37 @@ async def synthesize(body: schemas.SynthesizeIn, user: models.User = Depends(cur
     return {"tts_request_id": tts.id, "provider": tts.provider, "voice": tts.voice,
             "fallback": tts.fallback, "audio_url": f"/api/v1/speech/audio/{tts.id}",
             "note": info.get("note", "")}
+
+
+@router.post("/preview")
+async def preview(body: schemas.PreviewIn, user: models.User = Depends(current_user),
+                  db: Session = Depends(get_db)):
+    """Voice preview with fixed sample lines — no user text enters, so no
+    confirmation is needed and none is bypassed. Voice must be listed for
+    the language under the active provider."""
+    _ = (user, db)
+    language = body.language if body.language in tts_service.PREVIEW_LINES else "en"
+    ok, supported = tts_service.check_voice(language, body.voice)
+    if not ok:
+        raise HTTPException(status_code=409, detail={
+            "code": "VOICE_UNSUPPORTED", "message": f"Voice {body.voice} not available for {language}.",
+            "supported_voices": supported})
+    import tempfile
+
+    text = tts_service.PREVIEW_LINES[language]
+    voice = body.voice or supported[0]
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+        path = tmp.name
+    try:
+        info = await tts_service.synthesize(text, language, voice, body.speed, path)
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail={"code": "TTS_ERROR", "message": str(exc)[:300], "retryable": True})
+    import os as _os
+
+    from starlette.background import BackgroundTask
+    return FileResponse(path, media_type="audio/wav", filename=f"secondvoice_preview_{language}.wav",
+                        headers={"X-TTS-Provider": info["provider"], "X-TTS-Fallback": str(info.get("fallback", False))},
+                        background=BackgroundTask(_os.unlink, path))
 
 
 @router.get("/audio/{tts_id}")

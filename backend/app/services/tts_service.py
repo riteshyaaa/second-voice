@@ -21,9 +21,38 @@ VOICES = {
     "mr": ["mr-IN-AarohiNeural"],
 }
 
+# Google Cloud TTS (API-key REST). Names are curated Standard/Wavenet/
+# Neural2 voices that exist in each locale; the locale prefix is always
+# validated against the requested language before any call.
+GOOGLE_VOICES = {
+    "en": ["en-IN-Wavenet-A", "en-IN-Wavenet-B", "en-IN-Standard-A", "en-US-Neural2-A"],
+    "hi": ["hi-IN-Wavenet-A", "hi-IN-Wavenet-D", "hi-IN-Standard-A", "hi-IN-Standard-B"],
+    "hinglish": ["hi-IN-Wavenet-A", "en-IN-Wavenet-A"],
+    "mr": ["mr-IN-Wavenet-A", "mr-IN-Wavenet-B", "mr-IN-Standard-A"],
+}
+
+GOOGLE_LANG = {"en": "en-IN", "hi": "hi-IN", "hinglish": "hi-IN", "mr": "mr-IN"}
+
+# Fixed preview lines (no user text ever enters preview).
+PREVIEW_LINES = {
+    "en": "Hello. This is how I will sound.",
+    "hi": "नमस्ते। मैं ऐसे सुनाई दूंगा।",
+    "hinglish": "Namaste. This is how I will sound.",
+    "mr": "नमस्कार. मी असा ऐकू येईन.",
+}
+
 
 def voices_for(language: str) -> list[str]:
-    return VOICES.get(language, VOICES["en"])
+    table = GOOGLE_VOICES if settings.TTS_PROVIDER == "google" else VOICES
+    return table.get(language, table["en"])
+
+
+def check_voice(language: str, voice: str) -> tuple[bool, list[str]]:
+    """Is this voice speakable for this language under the active provider?"""
+    supported = voices_for(language)
+    if not voice:
+        return True, supported
+    return voice in supported, supported
 
 
 def _fallback_wav(path: str, text: str) -> None:
@@ -42,8 +71,49 @@ def _fallback_wav(path: str, text: str) -> None:
         w.writeframes(bytes(buf))
 
 
+async def _synthesize_google(text: str, language: str, voice: str, speed: float, out_path: str) -> dict:
+    """Google Cloud TTS via API-key REST. LINEAR16 PCM -> WAV container."""
+    key = settings.GOOGLE_TTS_API_KEY
+    if not key:
+        raise RuntimeError("GOOGLE_TTS_API_KEY is not configured")
+    ok, supported = check_voice(language, voice)
+    if not ok:
+        raise ValueError(f"Voice {voice} not available for {language}.")
+    lang_code = GOOGLE_LANG.get(language, "en-IN")
+    voice_name = voice or supported[0]
+    # The locale prefix must match the requested language — never let a
+    # mismatched voice through, even if it is in the list.
+    prefix = "-".join(voice_name.split("-")[:2])
+    allowed = {lang_code, "en-IN"} if language == "hinglish" else {lang_code}
+    if prefix not in allowed:
+        raise ValueError(f"Voice {voice_name} ({prefix}) does not match {language}.")
+    import base64
+
+    url = "https://texttospeech.googleapis.com/v1/text:synthesize"
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(url, params={"key": key}, json={
+            "input": {"text": text},
+            "voice": {"languageCode": lang_code, "name": voice_name},
+            "audioConfig": {"audioEncoding": "LINEAR16", "sampleRateHertz": 16000,
+                            "speakingRate": min(4.0, max(0.25, speed))}})
+    if resp.status_code >= 400:
+        raise RuntimeError(f"Google TTS error {resp.status_code}")
+    try:
+        pcm = base64.b64decode(resp.json()["audioContent"])
+    except (ValueError, KeyError) as exc:
+        raise RuntimeError(f"Google TTS malformed response: {exc}") from exc
+    with wave.open(out_path, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(16000)
+        w.writeframes(pcm)
+    return {"provider": "google", "voice": voice_name, "fallback": False}
+
+
 async def synthesize(text: str, language: str, voice: str, speed: float, out_path: str) -> dict:
     provider = settings.TTS_PROVIDER
+    if provider == "google":
+        return await _synthesize_google(text, language, voice, speed, out_path)
     if provider == "azure" and settings.AZURE_SPEECH_KEY:
         vs = voice or (voices_for(language)[0] if voices_for(language) else "")
         headers = {"Ocp-Apim-Subscription-Key": settings.AZURE_SPEECH_KEY, "Content-Type": "application/ssml+xml", "X-Microsoft-OutputFormat": "riff-16khz-16bit-mono-pcm"}

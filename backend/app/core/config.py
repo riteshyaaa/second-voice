@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     AZURE_SPEECH_KEY: str = ""
     AZURE_SPEECH_REGION: str = ""
     ELEVENLABS_API_KEY: str = ""
+    GOOGLE_TTS_API_KEY: str = ""
 
     STORAGE_DIR: str = "/data/audio"
     AUDIO_RETENTION_DAYS: int = 30
